@@ -29,7 +29,16 @@ if (store.isNew && importKey) {
   })
 }
 
-const api = createAdminApi(store)
+const sessionSecret = env.SESSION_SECRET
+const proxySecret = env.API_SIGNATURE_TOKEN
+// Cloud Run sets K_SERVICE; there these are needed, locally they're optional
+if (env.K_SERVICE) {
+  if (!sessionSecret) console.warn('SESSION_SECRET is not set: every restart will sign everyone out')
+  if (!proxySecret) console.warn('API_SIGNATURE_TOKEN is not set: the API accepts requests that skip Netlify')
+}
+if (sessionSecret && sessionSecret.length < 32) console.warn('SESSION_SECRET should be at least 32 characters')
+
+const api = createAdminApi(store, { sessionSecret, proxySecret })
 
 const server = createServer((req, res) => {
   api(req, res, (err) => {

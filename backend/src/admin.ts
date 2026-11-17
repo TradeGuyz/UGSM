@@ -45,15 +45,38 @@ function isHttps(req: IncomingMessage): boolean {
 
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1'])
 
-// Requests arrive through the frontend's proxy, so the socket address is the proxy's, not the browser's.
-// The proxy's X-Forwarded-For is trusted when it runs on this machine, or anywhere with TRUST_PROXY=1.
-// Only the last entry is used: that's the one the proxy added, and the rest can be made up by the client.
-function clientIp(req: IncomingMessage): string {
-  const peer = req.socket.remoteAddress ?? 'unknown'
-  const trusted = LOOPBACK.has(peer) || process.env.TRUST_PROXY === '1'
-  const forwarded = req.headers['x-forwarded-for']
-  if (!trusted || typeof forwarded !== 'string') return peer
-  return forwarded.split(',').pop()?.trim() || peer
+function header(req: IncomingMessage, name: string): string | undefined {
+  const value = req.headers[name]
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+/**
+ * Netlify's signed proxy (`signed = "API_SIGNATURE_TOKEN"` in netlify.toml) adds X-Nf-Sign, an HS256 JWT
+ * made with that token. A valid one proves the request came through the Netlify site.
+ */
+function verifyNetlifySignature(token: string | undefined, secret: string): boolean {
+  const [head, payload, signature] = token?.split('.') ?? []
+  if (!head || !payload || !signature) return false
+  const expected = Buffer.from(createHmac('sha256', secret).update(`${head}.${payload}`).digest('base64url'))
+  const given = Buffer.from(signature)
+  if (expected.length !== given.length || !timingSafeEqual(expected, given)) return false
+  try {
+    const { alg } = JSON.parse(Buffer.from(head, 'base64url').toString()) as { alg?: unknown }
+    const claims = JSON.parse(Buffer.from(payload, 'base64url').toString()) as { exp?: unknown; iss?: unknown }
+    if (alg !== 'HS256') return false
+    if (claims.iss !== undefined && claims.iss !== 'netlify') return false
+    if (typeof claims.exp === 'number' && claims.exp * 1000 < Date.now()) return false
+    return true
+  } catch {
+    return false
+  }
+}
+
+export type AdminOptions = {
+  /** Signs session cookies, so sessions survive restarts. Without it, a random key is made at startup. */
+  sessionSecret?: string
+  /** Netlify's proxy signing token. When set, every /api request except /api/health must be signed with it. */
+  proxySecret?: string
 }
 
 function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
@@ -105,13 +128,33 @@ function publicCollection(c: Collection) {
  *   *      /api/rankuog/<id>/<path>                    forwarded to RankUOG with that collection's key
  * Any other /api/* request without a session gets 401 and never reaches the routes behind it.
  */
-export function createAdminApi(store: Store): Middleware {
-  // Signs session cookies. Replaced when the PIN changes, which signs everyone out.
-  let secret = randomBytes(32)
+export function createAdminApi(store: Store, options: AdminOptions = {}): Middleware {
+  const { sessionSecret, proxySecret } = options
+  // Used when there's no SESSION_SECRET. Replaced when the PIN changes, which signs everyone out.
+  let randomSecret = randomBytes(32)
   const failures = new Map<string, { count: number; lockedUntil: number }>()
 
+  // With SESSION_SECRET, the key is derived from it and the current PIN,
+  // so sessions survive restarts but changing the PIN still signs everyone out
+  function secret(): Buffer {
+    if (!sessionSecret) return randomSecret
+    return createHmac('sha256', sessionSecret).update(store.pinStamp()).digest()
+  }
+
   function sign(expires: number): string {
-    return createHmac('sha256', secret).update(String(expires)).digest('base64url')
+    return createHmac('sha256', secret()).update(String(expires)).digest('base64url')
+  }
+
+  // The socket address is the proxy's, not the browser's, so the browser's address comes from a header.
+  // Behind Netlify (proxySecret set, so the request is already known to be signed) that's Netlify's
+  // X-Nf-Client-Connection-Ip. In local dev, X-Forwarded-For from the Vite proxy on this machine
+  // (or from any peer with TRUST_PROXY=1), using only the last entry: the one the proxy added.
+  function clientIp(req: IncomingMessage): string {
+    const peer = req.socket.remoteAddress ?? 'unknown'
+    if (proxySecret) return header(req, 'x-nf-client-connection-ip') ?? peer
+    const forwarded = header(req, 'x-forwarded-for')
+    if (!forwarded || !(LOOPBACK.has(peer) || process.env.TRUST_PROXY === '1')) return peer
+    return forwarded.split(',').pop()?.trim() || peer
   }
 
   function hasSession(req: IncomingMessage): boolean {
@@ -153,6 +196,7 @@ export function createAdminApi(store: Store): Middleware {
     // A record still locked was turned away above, so a non-zero lockedUntil here has expired: start over
     const count = (record && record.lockedUntil === 0 ? record.count : 0) + 1
     failures.set(ip, { count, lockedUntil: count >= MAX_FAILURES ? Date.now() + LOCKOUT_MS : 0 })
+    if (count >= MAX_FAILURES) console.warn(`Locked out ${ip} for ${LOCKOUT_MS / 60000} minutes after ${count} wrong PINs`)
     return { ok: false as const, status: 401, body: { error: 'Wrong PIN', attemptsLeft: Math.max(0, MAX_FAILURES - count) } }
   }
 
@@ -178,7 +222,7 @@ export function createAdminApi(store: Store): Middleware {
       return json(res, result.status, { ...result.body, error })
     }
     store.setPin(newPin)
-    secret = randomBytes(32)
+    randomSecret = randomBytes(32)
     json(res, 200, settingsBody(), { 'Set-Cookie': newSessionCookie(req) })
   }
 
@@ -283,6 +327,12 @@ export function createAdminApi(store: Store): Middleware {
   return (req, res, next) => {
     const [path, search] = (req.url ?? '').split('?')
     if (!path.startsWith('/api/')) return next()
+
+    // Behind Netlify, turn away anything that didn't come through the site, e.g. calls straight to
+    // the Cloud Run URL. Otherwise those could fake the client-IP header and dodge the PIN lockout.
+    if (proxySecret && path !== '/api/health' && !verifyNetlifySignature(header(req, 'x-nf-sign'), proxySecret)) {
+      return json(res, 403, { error: 'Use the website to reach this API' })
+    }
 
     route(req, res, path, search ? `?${search}` : '')
       .then((handled) => {

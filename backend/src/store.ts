@@ -68,6 +68,12 @@ export function createStore(file: string, envPin: string | undefined) {
       return false
     },
 
+    /** Changes whenever the PIN does, so session keys derived from it go stale with the old PIN */
+    pinStamp(): string {
+      if (data.pin) return `settings:${data.pin.hash}`
+      return `env:${envPin ? sha256(envPin).toString('base64') : ''}`
+    },
+
     setPin(pin: string) {
       const salt = randomBytes(16).toString('base64')
       data.pin = { salt, hash: scrypt(pin, salt).toString('base64'), updatedAt: new Date().toISOString() }

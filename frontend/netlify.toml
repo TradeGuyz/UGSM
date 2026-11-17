@@ -1,0 +1,22 @@
+# Netlify site settings: base directory = frontend
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# The API on Cloud Run, proxied so the browser sees one origin: no CORS, and the
+# SameSite=Strict login cookie works. `signed` makes Netlify add an X-Nf-Sign header
+# signed with the API_SIGNATURE_TOKEN environment variable (set it in Netlify's site
+# settings and on Cloud Run), so the API can reject requests that skip Netlify.
+[[redirects]]
+  from = "/api/*"
+  to = "https://ugsm-268093129841.europe-west1.run.app/api/:splat"
+  status = 200
+  force = true
+  signed = "API_SIGNATURE_TOKEN"
+
+# Single-page app: every other path loads index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
