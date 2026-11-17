@@ -1,0 +1,17 @@
+services:
+  api:
+    build: .
+    restart: unless-stopped
+    ports:
+      # Host-only: browsers reach the API through the frontend's proxy, never directly.
+      # That's what makes trusting the proxy's X-Forwarded-For (TRUST_PROXY) safe.
+      - "127.0.0.1:3001:3001"
+    environment:
+      TRUST_PROXY: "1"
+    # APP_PIN, RANKUOG_API_KEY, ... (see .env.example). The file isn't copied into the image.
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      # The same settings file the API uses when run without Docker
+      - ../data:/data
