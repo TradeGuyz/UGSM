@@ -470,10 +470,12 @@
   cursor: default;
 }
 
-/* Dashed cut lines around pieces being printed (outline doesn't affect layout) */
+/* Dashed cut lines around pieces being printed (outline doesn't affect layout). Dark and thick
+   enough to survive printing, even once shrunk inside the printer margin; centred on the edge
+   so two pieces side by side share one line to cut along. */
 .booth .slot.filled {
-  outline: 0.2mm dashed #c7c7c7;
-  outline-offset: -0.1mm;
+  outline: 0.4mm dashed #4b5563;
+  outline-offset: -0.2mm;
 }
 
 /* Slots not printed this time: shown on screen only */
