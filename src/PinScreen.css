@@ -1,0 +1,64 @@
+.pin-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 320px;
+  margin-top: 24px;
+}
+
+.pin-lock-icon {
+  font-size: 2.5rem;
+  color: var(--muted);
+}
+
+.pin-screen label {
+  color: var(--muted);
+}
+
+.pin-screen input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 1.5rem;
+  letter-spacing: 0.3em;
+  text-align: center;
+}
+
+.pin-screen input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.pin-screen button {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--bg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pin-screen button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pin-error {
+  min-height: 1.5em;
+  margin: 0;
+  color: #dc2626;
+}
+
+:root[data-theme='dark'] .pin-error {
+  color: #f87171;
+}

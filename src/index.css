@@ -42,7 +42,7 @@ body {
   transition: background 0.2s, color 0.2s;
 }
 
-#root {
+.tool {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -50,15 +50,11 @@ body {
   padding: 48px 16px;
 }
 
-.theme-toggle {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  padding: 8px 14px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-  cursor: pointer;
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }

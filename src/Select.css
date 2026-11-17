@@ -1,0 +1,25 @@
+.select {
+  position: relative;
+}
+
+.select .select-input {
+  appearance: none;
+  padding-right: 40px;
+  cursor: pointer;
+}
+
+.select .select-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.select .select-icon {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
