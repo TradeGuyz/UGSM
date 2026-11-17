@@ -1,0 +1,1206 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Photo Booth Templates</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Creepster&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --page-bg: #e5e7eb;
+        --text: #111827;
+        --toolbar-bg: #ffffff;
+        --border: #d1d5db;
+        --accent: #2563eb;
+        color-scheme: light;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          --page-bg: #0f172a;
+          --text: #f1f5f9;
+          --toolbar-bg: #1e293b;
+          --border: #475569;
+          --accent: #60a5fa;
+          color-scheme: dark;
+        }
+      }
+
+      :root[data-theme='dark'] {
+        --page-bg: #0f172a;
+        --text: #f1f5f9;
+        --toolbar-bg: #1e293b;
+        --border: #475569;
+        --accent: #60a5fa;
+        color-scheme: dark;
+      }
+
+      @page {
+        size: letter portrait;
+        margin: 0;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--page-bg);
+        color: var(--text);
+        font-family: system-ui, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 24px 16px 48px;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        justify-content: center;
+        background: var(--toolbar-bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px 16px;
+        margin-bottom: 24px;
+        max-width: 100%;
+      }
+
+      .toolbar button,
+      .toolbar label {
+        font: inherit;
+        padding: 8px 14px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      .toolbar .primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+
+      .toolbar button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .toolbar .field {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        border: none;
+        padding: 0;
+        cursor: default;
+      }
+
+      .toolbar input[type='number'] {
+        width: 64px;
+      }
+
+      .status {
+        font-size: 14px;
+        font-weight: 600;
+        margin: 0 0 8px;
+        text-align: center;
+      }
+
+      .toolbar input[type='text'],
+      .toolbar input[type='number'] {
+        font: inherit;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--text);
+      }
+
+      .toolbar input[type='text'] {
+        width: 180px;
+      }
+
+      .hint {
+        font-size: 13px;
+        opacity: 0.7;
+        margin: 0 0 20px;
+        text-align: center;
+      }
+
+      /* Scales the Letter sheet down on narrow screens without changing print size */
+      .sheet-wrap {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .sheet-label {
+        font-size: 13px;
+        font-weight: 600;
+        opacity: 0.7;
+        margin: 0 0 8px;
+      }
+
+      .sheet-label.back-only {
+        margin-top: 32px;
+      }
+
+      body.no-qr .back-only {
+        display: none;
+      }
+
+      /* ---------- US Letter sheet: 8.5 × 11 in (215.9 × 279.4 mm), 4 × 2 strips ---------- */
+      .sheet {
+        position: relative;
+        overflow: hidden;
+        width: 215.9mm;
+        height: 279.4mm;
+        background: #fff;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+        flex-shrink: 0;
+        transform-origin: top center;
+      }
+
+      /* A slot is where one strip goes; position and size are set inline from SLOTS */
+      .slot {
+        position: absolute;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+
+      /* Dashed cut lines around strips being printed (outline doesn't affect layout) */
+      .slot.filled {
+        outline: 0.2mm dashed #c7c7c7;
+        outline-offset: -0.1mm;
+      }
+
+      /* Slots not printed this time: shown on screen only */
+      .slot.free,
+      .slot.used {
+        font-size: 3.5mm;
+        font-weight: 600;
+        color: #9ca3af;
+      }
+
+      .slot.free {
+        outline: 0.3mm dashed #d1d5db;
+        outline-offset: -2mm;
+      }
+
+      .slot.used {
+        background: repeating-linear-gradient(45deg, #f3f4f6 0 2mm, #e5e7eb 2mm 4mm);
+        color: #6b7280;
+      }
+
+      /* ---------- One strip: 2.125 × 5.5 in (53.975 × 139.7 mm) ---------- */
+      .strip {
+        position: relative;
+        width: 2.125in;
+        height: 5.5in;
+        flex-shrink: 0;
+        padding: 5mm 5mm 0;
+        display: flex;
+        flex-direction: column;
+        gap: 3mm;
+        color: #111827;
+      }
+
+      .photo {
+        width: 43.975mm;
+        height: 27mm;
+        flex-shrink: 0;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #6b7280;
+        font-size: 4mm;
+        font-weight: 600;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .photo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+
+      .photo { background: #d1d5db; }
+
+      .footer {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        line-height: 1.2;
+      }
+
+      .footer .title,
+      .back .title {
+        font-family: 'Creepster', system-ui, sans-serif;
+        font-size: 4.6mm;
+        letter-spacing: 0.2mm;
+        color: #dc2626;
+      }
+
+      /* ---------- Halloween decorations (react-icons Game Icons, see sprite below) ---------- */
+      .decor {
+        position: absolute;
+        fill: currentColor;
+        pointer-events: none;
+      }
+
+      body.no-decor .decor {
+        display: none;
+      }
+
+      .decor-web {
+        top: 0;
+        left: 0;
+        width: 13mm;
+        height: 13mm;
+        color: #374151;
+      }
+
+      .decor-bat {
+        color: #1f2937;
+      }
+
+      .decor-bat.big {
+        top: 1mm;
+        right: 2mm;
+        width: 7mm;
+        height: 7mm;
+        transform: rotate(12deg);
+      }
+
+      .decor-bat.small {
+        top: 3.5mm;
+        right: 10mm;
+        width: 4.5mm;
+        height: 4.5mm;
+        transform: rotate(-10deg);
+      }
+
+      /* Hangs over the gap between photos 2 and 3 */
+      .decor-spider {
+        top: 57mm;
+        right: 0.5mm;
+        width: 9mm;
+        height: 9mm;
+        color: #111827;
+      }
+
+      /* Floats over the gap between photos 3 and 4 */
+      .decor-ghost {
+        top: 88mm;
+        left: 0;
+        width: 8mm;
+        height: 8mm;
+        color: #7c3aed;
+      }
+
+      .decor-pumpkin {
+        bottom: 2mm;
+        width: 6mm;
+        height: 6mm;
+        color: #ea580c;
+      }
+
+      .decor-pumpkin.left {
+        left: 3mm;
+      }
+
+      .decor-pumpkin.right {
+        right: 3mm;
+      }
+
+      .footer .date {
+        font-size: 2.6mm;
+        color: #dc2626;
+        margin-top: 1mm;
+      }
+
+      /* ---------- Back of a strip (QR side) ---------- */
+      /* Content stays 8 mm in from the edges so 1–3 mm of duplex drift never shows */
+      .back {
+        position: absolute;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 3mm;
+        padding: 8mm;
+        text-align: center;
+        color: #111827;
+      }
+
+      /* Rankuog asks for at least 15 mm, white border kept, not stretched */
+      .qr {
+        width: 30mm;
+        height: 30mm;
+        padding: 1.5mm;
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .qr img {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .qr.placeholder {
+        outline: 0.3mm dashed #9ca3af;
+        font-size: 2.6mm;
+        color: #6b7280;
+        padding: 3mm;
+      }
+
+      .back .caption {
+        font-size: 3.2mm;
+        font-weight: 700;
+        color: #dc2626;
+      }
+
+      .back .link {
+        font-size: 2.2mm;
+        color: #6b7280;
+        word-break: break-all;
+      }
+
+      .back .decor-bat.big {
+        top: 10mm;
+        right: 9mm;
+      }
+
+      .back .decor-pumpkin.left {
+        bottom: 10mm;
+        left: 9mm;
+      }
+
+      body.no-qr #sheet-back {
+        display: none;
+      }
+
+      /* ---------- Template tabs ---------- */
+      .tabs {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 4px;
+        background: var(--toolbar-bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 4px;
+        margin-bottom: 16px;
+        max-width: 100%;
+      }
+
+      .tabs button {
+        font: inherit;
+        padding: 8px 16px;
+        border: none;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      .tabs button[aria-selected='true'] {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      /* strips-only covers both strip tabs (plain and designed frames) */
+      body:not(.mode-prints) .prints-only,
+      body.mode-prints .strips-only,
+      body:not(.mode-frames) .frames-only {
+        display: none;
+      }
+
+      /* ---------- Designed 2 × 6 in frames (SVGs in public/) ---------- */
+      .frame-strip {
+        position: relative;
+        width: 2in;
+        height: 6in;
+        overflow: hidden;
+        background: #fff;
+      }
+
+      /* Photos sit under the frame art and show through its transparent windows */
+      .frame-strip .photo {
+        position: absolute;
+      }
+
+      .frame-strip .frame-art {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+
+      .toolbar select {
+        font: inherit;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--toolbar-bg);
+        color: var(--text);
+        max-width: 200px;
+      }
+
+      body.mode-prints .slot {
+        cursor: default;
+      }
+
+      /* ---------- 8 × 10 in sheet cut into four 4 × 5 in prints ---------- */
+      .strip.print {
+        width: 4in;
+        height: 5in;
+      }
+
+      .strip.print .photo {
+        width: 91.6mm;
+        height: 94mm;
+      }
+
+      .strip.print .footer .title {
+        font-size: 7.5mm;
+      }
+
+      .strip.print .footer .date {
+        font-size: 3.6mm;
+      }
+
+      .strip.print .decor-web {
+        width: 20mm;
+        height: 20mm;
+      }
+
+      .strip.print .decor-bat.big {
+        top: 1.5mm;
+        right: 2.5mm;
+        width: 11mm;
+        height: 11mm;
+      }
+
+      .strip.print .decor-bat.small {
+        top: 4.5mm;
+        right: 15mm;
+        width: 7mm;
+        height: 7mm;
+      }
+
+      .strip.print .decor-spider {
+        top: 42mm;
+        width: 11mm;
+        height: 11mm;
+      }
+
+      .strip.print .decor-ghost {
+        top: 76mm;
+        width: 10mm;
+        height: 10mm;
+      }
+
+      .strip.print .decor-pumpkin {
+        bottom: 4mm;
+        width: 10mm;
+        height: 10mm;
+      }
+
+      .strip.print .decor-pumpkin.left {
+        left: 4mm;
+      }
+
+      .strip.print .decor-pumpkin.right {
+        right: 4mm;
+      }
+
+      /* More room on a 4 × 5 back, so a bigger, easier-to-scan QR */
+      body.mode-prints .qr {
+        width: 40mm;
+        height: 40mm;
+      }
+
+      /* ---------- Print ---------- */
+      @media print {
+        body {
+          background: #fff;
+          padding: 0;
+          display: block;
+        }
+        .tabs,
+        .toolbar,
+        .status,
+        .hint,
+        .sheet-label {
+          display: none;
+        }
+        #sheet-back {
+          break-before: page;
+        }
+        .sheet {
+          box-shadow: none;
+          transform: none !important;
+          margin: 0 !important;
+        }
+        .slot.free,
+        .slot.used {
+          visibility: hidden;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Halloween icons from react-icons (Game Icons set, CC BY 3.0, game-icons.net) -->
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <defs>
+        <symbol id="icon-pumpkin" viewBox="0 0 512 512"><path d="M252.5 21.156c-16.98.22-33.708 4.552-49.72 13.313l-4.593 2.5-.25 5.218c-.71 14.473-.49 33.985 3.063 52.968-45.775 2.55-84.144 20.94-113.094 48.625C48.312 181.647 25.87 236.18 22.47 291c-3.402 54.82 12.32 110.396 50.5 149.563 38.01 38.994 98.086 60.67 179.843 49.437 91.743 8.826 154.664-13.978 192-53.906 37.494-40.1 48.374-96.148 39.968-150.563-8.404-54.413-35.9-107.795-76.905-144.53-30.753-27.55-69.526-45.58-112.813-46.688-6.366-.163-12.823.077-19.375.688 1.99-18.702 8.107-36.836 18.282-54.75l5.717-10.03-11-3.5c-10.928-3.484-21.894-5.354-32.78-5.564-1.135-.022-2.275-.014-3.407 0zm.594 18.5c.826-.005 1.64.012 2.47.032 5.472.13 11.025.846 16.655 2.03-14.398 29.89-19.03 61.625-13.314 94.282-8.162 1.28-13.987-.206-18.844-3.25-6.315-3.958-11.562-11.503-15.406-21.594-7.026-18.446-8.592-43.953-8.125-62.625 12.073-5.82 24.17-8.79 36.564-8.874zm36.812 73.22c1.623-.017 3.238-.007 4.844.03 26.418.605 50.73 8.318 72.438 21.188-6.758 10.28-19.022 19.106-35.563 25.78-21.344 8.614-49.05 13.303-77.063 13.5-28.012.2-56.365-4.08-79.093-12.5-18.705-6.928-33.23-16.595-41.532-28.093 20.665-11.46 44.554-18.416 71.687-19.28.486 1.454 1.022 2.892 1.563 4.313 4.727 12.41 11.81 23.756 22.968 30.75 11.158 6.993 25.952 8.577 42.406 3.343l8.22-2.625-1.97-8.405c-2.15-9.21-3.372-18.236-3.718-27.125 5.003-.54 9.945-.827 14.812-.875zm-171.78 29.968c11.135 16.145 29.513 27.66 50.843 35.562 25.507 9.45 55.785 13.868 85.75 13.656 29.962-.21 59.59-5.03 83.905-14.843 18.664-7.533 34.624-18.224 44.125-32.69 4.345 3.26 8.565 6.71 12.656 10.376 37.356 33.467 63.165 83.352 70.906 133.47 7.742 50.116-2.365 99.87-35.156 134.937-32.79 35.067-89.1 56.757-177.656 48l-1.125-.094-1.094.155c-77.94 10.96-131.157-9.192-164.936-43.844-33.78-34.65-48.35-84.885-45.22-135.374 3.133-50.488 24.058-100.77 59.688-134.844 5.438-5.2 11.21-10.05 17.313-14.468zm55.06 59.28c-17.525 19.402-30.988 41.834-41.03 66.845l78.563 2.936c-9.76-26.926-22.16-50.34-37.532-69.78zm168.033 1.407c-19.43 0-35.19 15.756-35.19 35.19 0 19.43 15.76 35.186 35.19 35.186s35.155-15.755 35.155-35.187c0-19.436-15.726-35.19-35.156-35.19zM62.31 321.876c10.71 51.276 48.785 85.54 97.157 103.875L164.5 400l40 7.688-5.656 29.125c20.105 3.882 41.064 5.448 61.937 4.812l-3.25-29.22 47.283-5.25 3.25 29.158c24.27-4.824 47.335-12.838 67.562-23.875l-11.094-29.375 38.876-17.625 8.03 21.25c18.428-17.576 31.46-39.23 36.408-64.813-31.205 9.386-64.876 16.156-99.656 20.375l3.656 26.844L303.97 377l-4.19-30.563c-14.542.79-29.185 1.157-43.81 1.125l-1.814 33.813-48.312-3.47 1.72-31.936c-14.844-.943-29.6-2.267-44.126-4.033l-8.844 35.25-40.563-6.78 8.657-34.626c-20.89-3.765-41.127-8.4-60.374-13.905z"></path></symbol>
+        <symbol id="icon-web" viewBox="0 0 512 512"><path d="M20.45 18.484L77.59 90.588C74.865 139.18 53.842 176.38 25.2 210.62l-6.716-1.76v19.32l2.557.672c15.35 45.065 9.088 90.827 1.82 138.294l-4.376 2.047v20.63l9.18-4.294c6.516 10.707 13.658 27.047 19.06 41.33 4.283 11.33 7.474 20.984 9.253 26.535l-37.493 37.69v2.43h23.942l28.55-28.7c9.27-.363 41.77-1.473 82.7-.75 46.744.825 102.612 4.3 139.05 13.667l5.08 15.784h19.632l-7.43-23.088c35.94-41.51 71.912-80.525 131.734-102.34l51.774 20.486v-20.097l-42.983-17.008c-6.374-39.21 12.755-76.665 30.62-116.68l12.363-2.585v-19.092l-6.323 1.323-5.45-2.803C425.656 182.8 405.41 133.64 388.444 78.93l44.184-60.446h-23.15l-38.6 52.81c-58.273 1.254-112.475-2.463-154.446-37.79l-2.274-15.02h-18.9l2.838 18.75C170.96 66.224 140.532 85.188 93.512 80.59l-49.22-62.106H20.448zm199.917 41.004c40.608 26.304 88.498 30.894 136.754 30.63l-33.14 45.34c-36.588.396-69.856-3.034-95.845-24.638l-7.768-51.332zm-18.834.44l8.29 54.775c-17.815 18.616-37.294 30.18-67.995 26.854L108.752 99.82c38.593-.74 68.358-17.144 92.78-39.892zM374.857 97.52c15.536 46.967 37.05 92.69 84.55 122.722l-51.768 10.82-.816-.417c-37.27-19.145-50.445-51.64-61.935-88.83l-.716-2.315 30.683-41.98zm-280.74 13.918l34.393 43.398c-2.523 29.583-15.404 52.66-33.14 74.207L44.966 215.81c23.714-29.774 42.64-63.393 49.152-104.373zm137.848 24.69c23.936 13.694 51.05 17.4 78.404 17.948l-32.91 45.028c-15.058-6.364-26.137-17.753-38.57-30.325l-2.343-2.37-4.582-30.28zm-18.778.81l5.592 36.955c-11.176 7.5-24.436 12.15-39.046 15.492l-22.902-28.897c22.71-1.395 41.095-10.68 56.356-23.55zm117.38 21.173c9.746 29.155 23.146 58.017 50.58 78.49l-55.928 11.69c-12.997-11.182-19.977-24.734-27.156-39.89l-1.67-3.53 34.174-46.76zm-186.432 16.443l19.142 24.154-.078.71c-1.93 17.365-8.877 29.63-16.65 43.063l-31.536-8.28c13.212-17.356 23.94-36.828 29.12-59.647zm77.674 19.353l6.012 39.742c-3.617.69-7.056 1.875-10.25 3.48l-25.177-31.767c10.19-2.75 20.13-6.345 29.414-11.454zm19.36 3.043c7.355 6.578 15.52 12.722 25.152 17.39l-15.834 21.662c-1.176-.493-2.377-.94-3.607-1.318l-5.71-37.735zm-62.75 20.864l24.91 31.43c-1.593 2.197-2.96 4.566-4.08 7.07l-33.914-8.902c4.955-8.757 9.83-18.253 13.084-29.598zm105.525 4.082c5.12 10.415 11.104 21.095 19.653 30.913l-31.143 6.508c-1.58-4.496-3.943-8.624-6.937-12.21l18.427-25.212zM42.172 234.4l48.873 12.83c9.227 28.215 5.795 57.08 1.2 87.448L43.173 357.64c5.95-40.147 10.29-81.414-1-123.24zm416.142 5.162c-14.933 32.635-30.114 66.733-27.433 104.13l-43.74-17.307c-3.6-25.016 8.776-49.445 20.725-76.278l50.45-10.544zm-346.576 13.1l27.614 7.248.562 1.4c6.1 15.133 5.383 31.772 2.9 49.708l-30.318 14.185c3.214-23.512 4.976-47.812-.758-72.54zm273.295 2.217c-9.043 19.817-17.797 40.803-17.252 63.847l-36.587-14.477c-.004-13.148 1.395-22.84 9.12-33.92l4.98-7.144 39.74-8.307zm-224.36 10.628l35.237 9.252c.22 3.636.94 7.135 2.078 10.44l-35.27 16.503c1.05-11.9.927-24.048-2.044-36.195zm159.16 3c-4.625 9.433-6.38 18.89-6.948 28.498l-39.278-15.54c.266-1.125.47-2.273.64-3.43l45.585-9.528zm-54.796 29.662l36.504 14.443c-8.91 4.58-17.316 10.536-24.677 16.16-3.907 2.986-7.107 5.602-9.886 7.942l-10.102-31.397c3.04-2 5.786-4.408 8.162-7.148zm-58.12 3.484L169.26 339.51c-2.558-6.2-6.018-11.147-9.588-15.235l.088-.556 47.154-22.066zm17.73 8.672c3.377.94 6.93 1.455 10.607 1.455 1.35 0 2.686-.067 4.002-.2l10.473 32.54c-13.314-.16-37.613.076-61.693 3.01l36.61-36.804zm103.486 12.81l25.363 10.034c-29.4 14.92-50.376 35.896-69.252 57.2L273.2 356.05c3.554-3.174 8.73-7.63 15.01-12.427 11.42-8.727 26.208-17.7 35.685-19.627l4.238-.86zM141.635 332.2l1.517 1.525c5.848 5.875 9.973 10.303 11.223 20.75l-31.143 31.308c-.35-2.27-.738-4.63-1.2-7.142-2.01-10.95-4.448-22.942-9.325-32.904l28.928-13.535zm235.928 10.493l39.218 15.518c-49.423 22.5-82.915 56.684-113.45 91.47l-12.435-38.647c24.103-27.838 47.673-53.616 86.668-68.34zM95.577 353.75c3.002 6.837 6.222 18.17 8.076 28.266 1.582 8.61 2.5 16.08 2.98 20.45l-35.882 36.075c-1.68-4.98-3.777-10.96-6.55-18.29-5.374-14.216-11.993-30.012-19.61-42.64l50.986-23.86zm150.863 9.148c3.968-.006 6.814.03 9.35.065l10.396 32.3c-26.257-4.15-58.633-4.19-87.057-3.185-15.575.55-28.004 1.327-37.857 2.065l24.108-24.237.95-.23c23.746-5.79 59.86-6.746 80.11-6.778zm-42.192 47.39c24.924-.053 50.366 1.266 68.416 5.103l13.428 41.727c-38.708-8.23-88.984-10.977-132.086-11.738-27.222-.482-49.237-.188-63.87.173l30.8-30.963c7.765-.757 30.71-2.842 58.853-3.836 7.9-.28 16.15-.45 24.458-.467z"></path></symbol>
+        <symbol id="icon-bat" viewBox="0 0 512 512"><path d="M196.14 78.192c-11.98 26.54-14.398 45.97-11.355 59.664 3.357 15.106 12.85 24.708 27.24 31.903l11.168 5.583-8.83 8.828c-.94.942-2.235 4.514-1.224 10.9 1.01 6.39 4.1 14.61 8.626 22.335 5.75 9.82 13.835 18.326 21.62 23.235L256 221.77l12.52 18.926c7.814-4.9 15.94-13.433 21.714-23.29 4.526-7.727 7.617-15.947 8.627-22.335 1.012-6.386-.282-9.958-1.223-10.9l-8.83-8.827 11.168-5.584c14.39-7.196 23.883-16.798 27.24-31.904 3.043-13.694.626-33.125-11.354-59.664-25.09 13.792-37.177 28.03-51.32 70.46L256 174.27l-8.54-25.617c-14.143-42.43-26.23-56.67-51.32-70.46zM96 97.808c-3.376 19.912-5.288 41.53 10.314 58.623C53.46 233.354 16 377.273 16 433.81c5.024-10.05 13.206-23.25 23.055-35.647 1.14-66.82 33.374-161.227 81.228-240.983l4.63-7.717 7.718 4.63c20.08 12.047 41.164 20.96 62.73 26.745-7.74-5.074-14.54-11.42-19.673-19.15-17.93-7.796-34.227-18.417-47.687-31.877-18.968-1.448-25.344-16.872-32-32zm320 0c-6.656 15.128-13.032 30.552-32 32-13.46 13.46-29.756 24.08-47.688 31.877-5.133 7.73-11.93 14.076-19.673 19.15 21.566-5.785 42.65-14.698 62.73-26.744l7.718-4.63 4.63 7.717c47.853 79.756 80.088 174.163 81.227 240.984 9.85 12.397 18.03 25.6 23.055 35.648 0-56.536-37.46-200.455-90.314-277.377 15.602-17.093 13.69-38.71 10.314-58.622zm-192 80c11.588 8.65 18.698 11.698 32 16 13.302-4.302 20.412-7.35 32-16 2.458 4.566 0 16 0 16-11.948 5.447-21.853 2.208-32 0-10.147 2.208-20.052 5.447-32 0 0 0-2.458-11.434 0-16zm-71.854 6.525c1.817 4.383 3.522 9.017 5.143 13.88 5.98 17.942 10.558 38.886 13.62 60.32 5.243 36.7 6.394 74.3.945 101.388 8.74-.234 17.477 2.767 26.21 8.274L166.41 392.56l20.268-4.795-8.55 33.595L208 403.77l1.057 20.8 13.615-34.794c.632.695 1.264 1.432 1.896 2.145-4.088-5.556-7.65-12.068-10.78-19.37-9.34-21.792-14.788-50.772-14.788-82.742 0-22.842 2.793-44.14 7.787-62.397-.18-.302-.375-.603-.553-.907-5.21-8.898-9-18.256-10.636-27.26-14.738-3.625-29.273-8.592-43.452-14.91zm207.708 0c-14.18 6.318-28.714 11.285-43.452 14.91-1.637 9.004-5.425 18.362-10.636 27.26-.178.304-.372.605-.553.908C310.207 245.67 313 266.967 313 289.81c0 31.97-5.448 60.95-14.787 82.742-2.734 6.378-5.807 12.136-9.262 17.2.085-.095.17-.198.253-.292l13.74 35.11L304 403.772l29.87 17.59-8.548-33.595 20.268 4.795-32.195-24.782c8.94-5.75 17.842-8.698 26.73-7.957-5.425-27.08-4.27-64.633.965-101.286 3.062-21.435 7.64-42.38 13.62-60.322 1.622-4.862 3.327-9.496 5.144-13.88zm-227.268.64c-12.714 64.79-23.21 127.977-15.46 180.256 12.15-9.62 24.292-10.477 36.362-5.83 4.968-22.784 4.842-61.64-.398-98.32-2.938-20.563-7.36-40.62-12.88-57.177-2.344-7.035-4.942-13.425-7.624-18.93zm246.828 0c-2.682 5.505-5.28 11.895-7.625 18.93-5.52 16.557-9.942 36.614-12.88 57.178-5.19 36.34-5.364 74.816-.537 97.683 12.897-3.96 24.765-2.81 36.5 6.468 7.75-52.28-2.745-115.467-15.46-180.256zm-271.6 33.74c-26.35 55.316-44.32 113.17-49.365 158.712 13.07-11.5 27.16-18.727 39.995-15.59-5.553-44.21.388-93.13 9.368-143.123zm296.374 0c8.98 49.993 14.92 98.912 9.367 143.122 12.835-3.137 26.925 4.09 39.996 15.59-5.044-45.542-23.014-103.396-49.363-158.713zm-183.22 27.466c-2.517 13.256-3.968 28.045-3.968 43.628 0 6.126.233 12.123.656 17.963 1.642 22.645 6.29 42.786 12.676 57.688 4.017 9.372 8.73 16.627 13.307 21.143 4.575 4.517 8.57 6.208 12.36 6.208 3.79 0 7.785-1.69 12.36-6.207 4.577-4.515 9.29-11.77 13.308-21.142 6.386-14.902 11.034-35.043 12.676-57.687.423-5.84.656-11.836.656-17.962 0-15.583-1.45-30.372-3.97-43.63-9.624 9.87-21.444 16.92-35.03 16.92-13.586 0-25.406-7.05-35.03-16.92zm9.805 153.007c8.413 10.265 16.82 22.012 25.227 34.62 8.136-12.204 16.2-23.596 24.207-33.636-6.772 6.394-15.1 10.638-24.207 10.638-9.465 0-18.096-4.578-25.006-11.397-.074-.072-.147-.15-.22-.223z"></path></symbol>
+        <symbol id="icon-spider" viewBox="0 0 512 512"><path d="M245.625 14.656v141.53c-27.713 6.03-48.875 38.405-48.875 77.47 0 15.552 3.366 30.034 9.156 42.22-3.25-3.28-6.404-6.91-9.406-10.97-33.54-45.34-33.54-121.904 0-167.25l-15-11.125c-39.288 53.12-39.292 136.387 0 189.5 2.543 3.44 5.202 6.67 7.97 9.69-55.29-22.365-93.407-72.152-93.407-129.408H77.374c0 61.73 38.437 115.01 94.438 141.938-21.208 7.248-40.477 17.198-57 29.344-36.29 26.675-59.594 64.432-59.594 106.5h18.686c0-35.19 19.332-67.448 51.97-91.438 16.31-11.99 35.903-21.796 57.75-28.594-2.178 2.024-4.292 4.167-6.345 6.407-42.477 46.365-42.477 120.787 0 167.155L191.063 475c-32.263-35.218-35.342-90.954-9.25-130.094 4.213 13.518 16.883 23.438 31.72 23.438 3.25 0 6.396-.49 9.374-1.375.453 1.81 1.043 3.564 1.78 5.25-4.572 6.227-7.28 13.926-7.28 22.25 0 14.788 8.532 27.58 20.938 33.717-.826-4.1-1.28-8.56-1.28-13.25 0-19.7 8.013-35.687 17.905-35.687 9.89 0 17.905 15.987 17.905 35.688 0 4.69-.456 9.15-1.28 13.25 12.404-6.14 20.936-18.93 20.936-33.72 0-8.215-2.657-15.814-7.124-22 .776-1.73 1.402-3.54 1.875-5.406 2.88.824 5.904 1.282 9.033 1.282 14.87 0 27.566-9.965 31.75-23.53 26.16 39.143 23.102 94.94-9.188 130.186l13.78 12.625c42.48-46.368 42.48-120.79 0-167.156-2.05-2.24-4.166-4.384-6.342-6.408 21.845 6.798 41.438 16.604 57.75 28.594 32.637 23.99 51.968 56.25 51.968 91.438h18.69c0-42.068-23.305-79.825-59.595-106.5-16.524-12.146-35.792-22.096-57-29.344 56-26.93 94.438-80.208 94.438-141.938h-18.688c0 57.256-38.118 107.043-93.406 129.407 2.765-3.02 5.424-6.25 7.967-9.69 39.292-53.11 39.292-136.38 0-189.5l-15 11.126c33.542 45.345 33.54 121.913 0 167.25-2.987 4.04-6.14 7.64-9.375 10.906 5.77-12.18 9.125-26.627 9.125-42.156 0-39.065-21.162-71.44-48.875-77.47V14.657h-18.687zm9.47 281.5c8.137 0 14.53 6.398 14.53 14.53 0 8.135-6.393 14.533-14.53 14.533-8.14 0-14.5-6.398-14.5-14.533 0-8.133 6.366-14.53 14.5-14.53zm-41.564 24.438c8.14 0 14.532 6.398 14.532 14.53 0 8.134-6.393 14.532-14.53 14.532-8.14 0-14.532-6.396-14.532-14.53s6.398-14.532 14.53-14.532zm82.782 0c8.138 0 14.532 6.398 14.532 14.53 0 8.134-6.394 14.532-14.53 14.532-8.14 0-14.533-6.396-14.533-14.53s6.4-14.532 14.533-14.532zm-41.218 23.875c8.138 0 14.53 6.397 14.53 14.53s-6.392 14.53-14.53 14.53c-8.138 0-14.5-6.395-14.5-14.53 0-8.133 6.367-14.53 14.5-14.53z"></path></symbol>
+        <symbol id="icon-ghost" viewBox="0 0 512 512"><path d="M373.688 22.063c-1.245-.014-2.498 0-3.75.03-31.364.748-65.528 15.414-96.938 47.313-88.264 89.642-154.092 171.18-242.938 174.03 23.65 18.21 54.87 31.21 85.25 36.783-24.375 29.26-50.877 47.65-93.437 64.842 37.915 9.124 74.452 6.5 109.813-2.343-27.29 34.35-62.118 65.85-107.47 95.78 60.376-.392 136.226-12.138 181.626-47.906-4.842 30.69-16.186 65.125-43.22 100.47 70.74-18.73 117.115-42.386 146.595-83.533 2.905 27.513-.94 45.098-11.095 80.595 78.006-66.3 150.857-164.775 182.78-270.97C513.44 108.94 452.066 22.89 373.69 22.063zM371.03 96.47c5.76 0 11.1 1.732 15.564 4.686-7.706.283-13.875 6.6-13.875 14.375 0 7.956 6.45 14.407 14.405 14.407 5.118 0 9.6-2.665 12.156-6.687.028.503.033 1.022.033 1.53 0 15.633-12.648 28.314-28.282 28.314-15.632 0-28.31-12.68-28.31-28.313 0-15.63 12.678-28.31 28.31-28.31zm67.376 34.874c4.462 0 8.683 1.035 12.438 2.875-5.734 1.9-9.875 7.284-9.875 13.655 0 7.955 6.45 14.406 14.405 14.406 4.54 0 8.547-2.093 11.188-5.374.086.902.156 1.826.156 2.75 0 15.632-12.68 28.313-28.314 28.313-15.633 0-28.312-12.682-28.312-28.314s12.68-28.312 28.312-28.312zm-111.5 32.47l4.906 45.155 29.782-25.032 4.625 42.53 31.31-26.343 4.314 39.75 30.312-25.47 5.97 55.032-43.938 36.938-4.313-39.75-30.313 25.47-4.625-42.533-31.312 26.344-4.906-45.156-29.783 25.03-5.968-55.03 43.936-36.938z"></path></symbol>
+      </defs>
+    </svg>
+    <nav class="tabs" role="tablist" aria-label="Template">
+      <button type="button" role="tab" data-mode="strips">Photo strips · 2.125 × 5.5 in</button>
+      <button type="button" role="tab" data-mode="frames">Designed frames · 2 × 6 in</button>
+      <button type="button" role="tab" data-mode="prints">8 × 10 in → four 4 × 5 in prints</button>
+    </nav>
+    <div class="toolbar">
+      <label class="primary" for="photo-input">Choose 4 photos</label>
+      <input id="photo-input" type="file" accept="image/*" multiple hidden />
+      <input id="title-input" type="text" value="CS Social Media" aria-label="Strip title" />
+      <label class="field frames-only" for="frame-input">
+        Frame
+        <select id="frame-input"></select>
+      </label>
+      <label class="field strips-only" for="sessions-input">
+        Sessions
+        <input id="sessions-input" type="number" min="1" max="4" value="1" />
+      </label>
+      <label class="field" for="decor-input">
+        <input id="decor-input" type="checkbox" checked />
+        Halloween decorations
+      </label>
+      <label class="field" for="qr-input">
+        <input id="qr-input" type="checkbox" checked />
+        QR on back
+      </label>
+      <button type="button" id="print-btn">Print</button>
+      <button type="button" id="cut-btn" class="strips-only">Mark as cut</button>
+      <button type="button" id="reset-btn" class="strips-only">New sheet</button>
+    </div>
+    <p class="status" id="status"></p>
+    <p class="hint">
+      <span class="strips-only">
+        Each session prints 2 copies side by side · print at "Actual size" / 100% · feed partly-cut sheets
+        through the manual tray, top edge first · click a slot to mark it cut or free
+      </span>
+      <span class="frames-only">
+        · Frames are the SVG files in <code>public/</code> (1400 × 4200, photo windows left transparent); four
+        2 × 6 in strips print along the bottom of the sheet
+      </span>
+      <span class="prints-only">
+        One 8 × 10 in block on Letter, cut along the dashed lines into four 4 × 5 in prints, one photo
+        each · print at "Actual size" / 100%
+      </span>
+      <span class="back-only">
+        · QR on back: open this page through <code>npm run dev</code> so photos can upload, and print
+        two-sided, flip on long edge
+      </span>
+    </p>
+
+    <div class="sheet-wrap">
+      <p class="sheet-label back-only">Front</p>
+      <div class="sheet" id="sheet"></div>
+      <p class="sheet-label back-only">Back (prints on the reverse side)</p>
+      <div class="sheet" id="sheet-back"></div>
+    </div>
+
+    <script>
+      const sheet = document.getElementById('sheet')
+      const sheetBack = document.getElementById('sheet-back')
+      const photoInput = document.getElementById('photo-input')
+      const titleInput = document.getElementById('title-input')
+      const today = new Date().toLocaleDateString(undefined, {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      })
+
+      const sessionsInput = document.getElementById('sessions-input')
+      const printBtn = document.getElementById('print-btn')
+      const cutBtn = document.getElementById('cut-btn')
+      const status = document.getElementById('status')
+
+      // Strip positions on the sheet, in inches from the top-left corner.
+      // Slots are numbered 0–7, left to right, top row then bottom row.
+      const SLOTS = Array.from({ length: 8 }, (_, s) => ({ x: (s % 4) * 2.125, y: Math.floor(s / 4) * 5.5 }))
+      // Fill the bottom row first so the sheet's top (leading) edge stays whole.
+      const PAIRS = [
+        [6, 7],
+        [4, 5],
+        [2, 3],
+        [0, 1],
+      ]
+      // 8 × 10 in block centered on Letter, split 2 × 2 into 4 × 5 in prints (inches from top-left)
+      const PRINT_W = 4
+      const PRINT_H = 5
+      const PRINT_SLOTS = [
+        { x: 0.25, y: 0.5 },
+        { x: 4.25, y: 0.5 },
+        { x: 0.25, y: 5.5 },
+        { x: 4.25, y: 5.5 },
+      ]
+      // The two strip tabs share sessions, cut tracking and QR backs; this is what differs.
+      // Each remembers its own partly-cut sheet.
+      const STRIP_LAYOUTS = {
+        strips: { slots: SLOTS, pairs: PAIRS, w: 2.125, h: 5.5, storageKey: 'photo-strip-used-slots' },
+        // Four 2 × 6 in strips along the bottom so the sheet's top (leading) edge stays whole
+        frames: {
+          slots: [0.25, 2.25, 4.25, 6.25].map((x) => ({ x, y: 4.5 })),
+          pairs: [
+            [2, 3],
+            [0, 1],
+          ],
+          w: 2,
+          h: 6,
+          storageKey: 'photo-strip-used-frames',
+        },
+      }
+      // Photo windows in the frame artwork (1400 × 4200 units = 2 × 6 in). Photos are drawn a
+      // little larger than the windows so no white gap shows at the edges; the frame covers the rest.
+      const FRAME_W = 1400
+      const FRAME_H = 4200
+      const FRAME_WINDOWS = [136, 960, 1784, 2608].map((y) => ({ x: 136, y, w: 1128, h: 656 }))
+      const FRAME_BLEED = 16
+      const FRAME_KEY = 'photo-strip-frame'
+      const frameInput = document.getElementById('frame-input')
+      const MODES = ['strips', 'frames', 'prints']
+      const DECOR_KEY = 'photo-strip-decor'
+      const decorInput = document.getElementById('decor-input')
+      try {
+        decorInput.checked = localStorage.getItem(DECOR_KEY) !== 'off'
+      } catch {
+        // Storage unavailable; decorations stay on
+      }
+      // Which template tab is open: the URL hash wins (#strips / #frames / #prints), then the last one used
+      const MODE_KEY = 'photo-strip-mode'
+      let mode = 'strips'
+      try {
+        mode = localStorage.getItem(MODE_KEY) || mode
+      } catch {
+        // Storage unavailable; start on strips
+      }
+      if (MODES.includes(location.hash.slice(1))) mode = location.hash.slice(1)
+      if (!MODES.includes(mode)) mode = 'strips'
+      const QR_KEY = 'photo-strip-qr'
+      const qrInput = document.getElementById('qr-input')
+      try {
+        qrInput.checked = localStorage.getItem(QR_KEY) !== 'off'
+      } catch {
+        // Storage unavailable; QR stays on
+      }
+
+      // Uploads go through the Vite dev server proxy, which adds the API key (see vite.config.ts)
+      const API = '/api/rankuog'
+      // The API takes up to 10 MB and recommends about 2560 px on the long side;
+      // stay well under the limit in case a photo is unusually detailed.
+      const MAX_BYTES = 8 * 1024 * 1024
+      const SIDES = [2560, 2048, 1600]
+      const QUALITIES = [0.9, 0.8, 0.7]
+
+      let photoFiles = []
+      let photoUrls = []
+      // Upload progress for the current photo set: { strip, results: [response per photo] }
+      let upload = null
+      // Cut-out slots on the current strip tab's sheet (reloaded when switching tabs)
+      let used = new Set()
+
+      const layout = () => STRIP_LAYOUTS[mode]
+
+      function loadUsed() {
+        try {
+          const saved = JSON.parse(localStorage.getItem(layout().storageKey))
+          if (Array.isArray(saved)) return new Set(saved)
+        } catch {
+          // Storage unavailable or invalid; start with a fresh sheet
+        }
+        return new Set()
+      }
+
+      function saveUsed() {
+        try {
+          localStorage.setItem(layout().storageKey, JSON.stringify([...used]))
+        } catch {
+          // Ignore; the sheet just won't be remembered
+        }
+      }
+
+      function freePairs() {
+        return layout().pairs.filter(([a, b]) => !used.has(a) && !used.has(b))
+      }
+
+      function filledSlots() {
+        const free = freePairs()
+        const sessions = Math.max(1, Math.min(free.length, Number(sessionsInput.value) || 1))
+        return new Set(free.slice(0, sessions).flat())
+      }
+
+      function togglePair(slot) {
+        const pair = layout().pairs.find((p) => p.includes(slot))
+        if (pair.some((s) => used.has(s))) pair.forEach((s) => used.delete(s))
+        else pair.forEach((s) => used.add(s))
+        saveUsed()
+        render()
+      }
+
+      // Places a back so it lands behind the front at (x, y) when the printer flips
+      // the sheet on its long edge: same row, mirrored left-right. Sizes in inches.
+      function placeBack(back, x, y, w, h) {
+        back.style.left = `${8.5 - x - w}in`
+        back.style.top = `${y}in`
+        back.style.width = `${w}in`
+        back.style.height = `${h}in`
+        sheetBack.appendChild(back)
+      }
+
+      function render() {
+        if (mode === 'prints') return renderPrints()
+
+        const { slots, pairs, w, h } = layout()
+        const free = freePairs()
+        const filled = filledSlots()
+
+        sessionsInput.max = Math.max(1, free.length)
+        if (Number(sessionsInput.value) > free.length) sessionsInput.value = Math.max(1, free.length)
+        sessionsInput.disabled = printBtn.disabled = cutBtn.disabled = free.length === 0
+        status.textContent =
+          free.length === 0
+            ? 'Sheet full: load a new sheet and click "New sheet"'
+            : `${free.length} of ${pairs.length} sessions left on this sheet`
+
+        sheet.innerHTML = ''
+        slots.forEach(({ x, y }, s) => {
+          const slot = document.createElement('div')
+          slot.style.left = `${x}in`
+          slot.style.top = `${y}in`
+          slot.style.width = `${w}in`
+          slot.style.height = `${h}in`
+          slot.addEventListener('click', () => togglePair(s))
+
+          let state = 'filled'
+          if (!filled.has(s)) state = used.has(s) ? 'used' : 'free'
+          slot.className = `slot ${state}`
+
+          if (state === 'filled') {
+            slot.title = 'Click to mark as cut out'
+            slot.appendChild(mode === 'frames' ? buildFrameStrip() : buildStrip())
+          } else {
+            slot.textContent = state === 'used' ? 'Cut out' : 'Free'
+            slot.title = state === 'used' ? 'Click to mark as free' : 'Click to mark as cut out'
+          }
+          sheet.appendChild(slot)
+        })
+
+        sheetBack.innerHTML = ''
+        filled.forEach((s) => placeBack(buildBack(0), slots[s].x, slots[s].y, w, h))
+      }
+
+      // A 2 × 6 in strip: the 4 photos placed under the chosen SVG frame's windows
+      function buildFrameStrip() {
+        const strip = document.createElement('div')
+        strip.className = 'frame-strip'
+        const pct = (v, total) => `${(v / total) * 100}%`
+        FRAME_WINDOWS.forEach(({ x, y, w, h }, i) => {
+          const photo = buildPhoto(i)
+          photo.style.left = pct(x - FRAME_BLEED, FRAME_W)
+          photo.style.top = pct(y - FRAME_BLEED, FRAME_H)
+          photo.style.width = pct(w + 2 * FRAME_BLEED, FRAME_W)
+          photo.style.height = pct(h + 2 * FRAME_BLEED, FRAME_H)
+          strip.appendChild(photo)
+        })
+        if (frameInput.value) {
+          const art = document.createElement('img')
+          art.className = 'frame-art'
+          art.src = `/${encodeURIComponent(frameInput.value)}`
+          art.alt = ''
+          strip.appendChild(art)
+        }
+        return strip
+      }
+
+      // Fills the frame picker from the SVGs in public/ (listed by the dev server, see vite.config.ts)
+      async function loadFrames() {
+        let frames = []
+        try {
+          const res = await fetch('/api/frames')
+          if (res.ok) frames = await res.json()
+        } catch {
+          // Not running through the dev server; the picker stays empty
+        }
+        let saved = null
+        try {
+          saved = localStorage.getItem(FRAME_KEY)
+        } catch {
+          // Storage unavailable; pick the first frame
+        }
+        frameInput.innerHTML = ''
+        for (const file of frames) {
+          const option = document.createElement('option')
+          option.value = file
+          option.textContent = file.replace(/\.svg$/i, '')
+          frameInput.appendChild(option)
+        }
+        if (frames.includes(saved)) frameInput.value = saved
+        if (!frames.length) {
+          const option = document.createElement('option')
+          option.textContent = 'No frames found (open via npm run dev)'
+          option.value = ''
+          frameInput.appendChild(option)
+        }
+        render()
+      }
+
+      // One 8 × 10 block per sheet, so there are no sessions or cut tracking here
+      function renderPrints() {
+        printBtn.disabled = false
+        status.textContent = 'One 8 × 10 in sheet → four 4 × 5 in prints, one photo each'
+
+        sheet.innerHTML = ''
+        sheetBack.innerHTML = ''
+        PRINT_SLOTS.forEach(({ x, y }, i) => {
+          const slot = document.createElement('div')
+          slot.className = 'slot filled'
+          slot.style.left = `${x}in`
+          slot.style.top = `${y}in`
+          slot.style.width = `${PRINT_W}in`
+          slot.style.height = `${PRINT_H}in`
+          slot.appendChild(buildPrint(i))
+          sheet.appendChild(slot)
+          placeBack(buildBack(i), x, y, PRINT_W, PRINT_H)
+        })
+      }
+
+      // photoIndex picks that photo's own QR; all photos share a strip, so any of them shows the set
+      function buildBack(photoIndex) {
+        const back = document.createElement('div')
+        back.className = 'back'
+        const title = document.createElement('div')
+        title.className = 'title'
+        title.textContent = titleInput.value
+
+        const qr = document.createElement('div')
+        qr.className = 'qr'
+        const first = upload?.results[photoIndex] ?? upload?.results[0]
+        if (first) {
+          const img = document.createElement('img')
+          img.src = qrSrc(first)
+          img.alt = 'QR code for your photos'
+          qr.appendChild(img)
+        } else {
+          qr.classList.add('placeholder')
+          qr.textContent = photoFiles.length ? 'QR is made when you print' : 'QR code goes here'
+        }
+
+        const caption = document.createElement('div')
+        caption.className = 'caption'
+        caption.textContent = 'Scan for your photos'
+        back.append(title, qr, caption)
+
+        if (first?.photo?.short_url) {
+          const link = document.createElement('div')
+          link.className = 'link'
+          link.textContent = first.photo.short_url.replace(/^https?:\/\//, '')
+          back.appendChild(link)
+        }
+        back.append(icon('bat', 'decor-bat big'), icon('pumpkin', 'decor-pumpkin left'))
+        return back
+      }
+
+      // Shown as an <img> rather than inserted markup, so nothing from the API runs in the page
+      function qrSrc(result) {
+        if (result.qr_svg) return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(result.qr_svg)}`
+        if (result.qr_png) {
+          return result.qr_png.startsWith('data:') ? result.qr_png : `data:image/png;base64,${result.qr_png}`
+        }
+        return `${API}/photos/${result.photo.id}/qr.png?size=1000`
+      }
+
+      function stripLabel() {
+        const d = new Date()
+        const pad = (n) => String(n).padStart(2, '0')
+        const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+        const time = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+        // The API allows at most 64 characters for strip, so trim the title rather than the timestamp
+        const stamp = ` ${date} ${time}`
+        return titleInput.value.slice(0, 64 - stamp.length) + stamp
+      }
+
+      // Re-encode as JPEG under MAX_BYTES: lower the quality first, then the size if needed
+      async function prepareImage(file) {
+        const bitmap = await createImageBitmap(file)
+        try {
+          let blob
+          for (const side of SIDES) {
+            const scale = Math.min(1, side / Math.max(bitmap.width, bitmap.height))
+            const canvas = document.createElement('canvas')
+            canvas.width = Math.round(bitmap.width * scale)
+            canvas.height = Math.round(bitmap.height * scale)
+            canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+            for (const quality of QUALITIES) {
+              blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality))
+              if (!blob) throw new Error('Could not read photo')
+              if (blob.size <= MAX_BYTES) return blob
+            }
+          }
+          return blob
+        } finally {
+          bitmap.close()
+        }
+      }
+
+      // Uploads the current photos as one strip. Photos already uploaded are skipped,
+      // so retrying after an error doesn't create duplicates.
+      async function uploadStrip() {
+        if (location.protocol === 'file:') {
+          throw new Error('To upload photos, open this page through "npm run dev" instead of the file.')
+        }
+        upload ??= { strip: stripLabel(), results: [] }
+
+        for (let i = upload.results.length; i < photoFiles.length; i++) {
+          status.textContent = `Uploading photo ${i + 1} of ${photoFiles.length}…`
+          const form = new FormData()
+          const image = await prepareImage(photoFiles[i])
+          form.append('file', image, `photo-${i + 1}.jpg`)
+          form.append('caption', titleInput.value.slice(0, 200))
+          form.append('strip', upload.strip)
+
+          // Server errors (5xx) are often one-off, so retry a couple of times before giving up
+          let res
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              res = await fetch(`${API}/photos`, { method: 'POST', body: form })
+            } catch {
+              throw new Error('Could not reach the upload server. Is "npm run dev" running?')
+            }
+            if (res.status < 500 || attempt === 3) break
+            status.textContent = `Uploading photo ${i + 1} of ${photoFiles.length}… (retrying)`
+            await new Promise((r) => setTimeout(r, attempt * 1500))
+          }
+          const body = await res.json().catch(() => ({}))
+          if (res.status === 429) {
+            const wait = res.headers.get('Retry-After')
+            throw new Error(`Upload limit reached. Try again in ${wait ? `${wait} seconds` : 'a little while'}.`)
+          }
+          if (!res.ok) {
+            const size = `${(image.size / 1024 / 1024).toFixed(1)} MB`
+            throw new Error(`Upload of photo ${i + 1} failed (HTTP ${res.status}, ${size}): ${body.error || 'no details'}.`)
+          }
+          upload.results.push(body)
+        }
+      }
+
+      function buildStrip() {
+        const strip = document.createElement('div')
+        strip.className = 'strip'
+        for (let i = 0; i < 4; i++) strip.appendChild(buildPhoto(i))
+        strip.append(buildFooter(), ...decorations())
+        return strip
+      }
+
+      // A 4 × 5 in print with a single photo
+      function buildPrint(i) {
+        const print = document.createElement('div')
+        print.className = 'strip print'
+        print.append(buildPhoto(i), buildFooter(), ...decorations())
+        return print
+      }
+
+      function buildPhoto(i) {
+        const photo = document.createElement('div')
+        photo.className = 'photo'
+        if (photoUrls[i]) {
+          const img = document.createElement('img')
+          img.src = photoUrls[i]
+          img.alt = `Photo ${i + 1}`
+          photo.appendChild(img)
+        } else {
+          photo.textContent = i + 1
+        }
+        return photo
+      }
+
+      function buildFooter() {
+        const footer = document.createElement('div')
+        footer.className = 'footer'
+        const title = document.createElement('div')
+        title.className = 'title'
+        title.textContent = titleInput.value
+        const date = document.createElement('div')
+        date.className = 'date'
+        date.textContent = today
+        footer.append(title, date)
+        return footer
+      }
+
+      function decorations() {
+        return [
+          icon('web', 'decor-web'),
+          icon('bat', 'decor-bat big'),
+          icon('bat', 'decor-bat small'),
+          icon('spider', 'decor-spider'),
+          icon('ghost', 'decor-ghost'),
+          icon('pumpkin', 'decor-pumpkin left'),
+          icon('pumpkin', 'decor-pumpkin right'),
+        ]
+      }
+
+      function icon(id, className) {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+        svg.setAttribute('class', `decor ${className}`)
+        svg.setAttribute('aria-hidden', 'true')
+        const use = document.createElementNS('http://www.w3.org/2000/svg', 'use')
+        use.setAttribute('href', `#icon-${id}`)
+        svg.appendChild(use)
+        return svg
+      }
+
+      function applyDecor() {
+        document.body.classList.toggle('no-decor', !decorInput.checked)
+        try {
+          localStorage.setItem(DECOR_KEY, decorInput.checked ? 'on' : 'off')
+        } catch {
+          // Ignore; the setting just won't be remembered
+        }
+      }
+
+      function applyQr() {
+        document.body.classList.toggle('no-qr', !qrInput.checked)
+        try {
+          localStorage.setItem(QR_KEY, qrInput.checked ? 'on' : 'off')
+        } catch {
+          // Ignore; the setting just won't be remembered
+        }
+        fit()
+      }
+
+      // Shrink the on-screen preview to fit narrow windows
+      function fit() {
+        for (const s of [sheet, sheetBack]) {
+          s.style.transform = ''
+          s.style.marginBottom = ''
+          if (!s.offsetWidth) continue
+          const scale = Math.min(1, s.parentElement.clientWidth / s.offsetWidth)
+          if (scale < 1) {
+            s.style.transform = `scale(${scale})`
+            s.style.marginBottom = `${-(1 - scale) * s.offsetHeight}px`
+          }
+        }
+      }
+
+      photoInput.addEventListener('change', () => {
+        photoUrls.forEach((url) => URL.revokeObjectURL(url))
+        photoFiles = Array.from(photoInput.files)
+          .filter((f) => f.type.startsWith('image/'))
+          .slice(0, 4)
+        photoUrls = photoFiles.map((f) => URL.createObjectURL(f))
+        upload = null
+        photoInput.value = ''
+        render()
+      })
+
+      titleInput.addEventListener('input', render)
+      sessionsInput.addEventListener('input', render)
+
+      printBtn.addEventListener('click', async () => {
+        if (qrInput.checked && photoFiles.length) {
+          printBtn.disabled = true
+          try {
+            await uploadStrip()
+          } catch (err) {
+            status.textContent = `${err.message} Untick "QR on back" to print without it.`
+            printBtn.disabled = false
+            return
+          }
+          render()
+          status.textContent += ' · photos uploaded'
+          await Promise.all([...sheetBack.querySelectorAll('img')].map((img) => img.decode().catch(() => {})))
+        }
+        window.print()
+      })
+
+      cutBtn.addEventListener('click', () => {
+        filledSlots().forEach((s) => used.add(s))
+        saveUsed()
+        render()
+      })
+
+      document.getElementById('reset-btn').addEventListener('click', () => {
+        used = new Set()
+        saveUsed()
+        render()
+      })
+      decorInput.addEventListener('change', applyDecor)
+      qrInput.addEventListener('change', applyQr)
+      window.addEventListener('resize', fit)
+
+      for (const tab of document.querySelectorAll('.tabs button')) {
+        tab.addEventListener('click', () => setMode(tab.dataset.mode))
+      }
+      window.addEventListener('hashchange', () => setMode(location.hash.slice(1)))
+
+      frameInput.addEventListener('change', () => {
+        try {
+          localStorage.setItem(FRAME_KEY, frameInput.value)
+        } catch {
+          // Ignore; the frame just won't be remembered
+        }
+        render()
+      })
+
+      function setMode(next) {
+        if (!MODES.includes(next)) return
+        mode = next
+        for (const m of MODES) document.body.classList.toggle(`mode-${m}`, mode === m)
+        if (layout()) used = loadUsed()
+        for (const tab of document.querySelectorAll('.tabs button')) {
+          tab.setAttribute('aria-selected', String(tab.dataset.mode === mode))
+        }
+        if (location.hash !== `#${mode}`) history.replaceState(null, '', `#${mode}`)
+        try {
+          localStorage.setItem(MODE_KEY, mode)
+        } catch {
+          // Ignore; the tab just won't be remembered
+        }
+        render()
+        fit()
+      }
+
+      setMode(mode)
+      applyDecor()
+      applyQr()
+      loadFrames()
+    </script>
+  </body>
+</html>
