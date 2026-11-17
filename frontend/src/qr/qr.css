@@ -1,0 +1,152 @@
+/* QR codes page. The panel, sheet and card styles come from booth.css. */
+
+.qr-collection-row {
+  display: flex;
+  gap: 8px;
+}
+
+.qr-collection-row .select {
+  flex: 1;
+  min-width: 0;
+}
+
+.qr-collection-row select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.qr-collection-row select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.qr-refresh {
+  flex-shrink: 0;
+  padding: 9px 11px;
+}
+
+.qr-spin {
+  animation: qr-spin 0.9s linear infinite;
+}
+
+@keyframes qr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qr-spin {
+    animation: none;
+  }
+}
+
+/* The photo sets in the collection, newest first; long lists scroll on their own */
+.qr-sets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 420px;
+  margin: 0;
+  padding: 0 2px 0 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.qr-set {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.qr-set[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.qr-set:disabled {
+  cursor: default;
+}
+
+.qr-set:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.qr-set-thumbs {
+  display: flex;
+  gap: 2px;
+}
+
+.qr-set-thumbs img {
+  width: 28px;
+  height: 36px;
+  border-radius: 4px;
+  background: var(--surface);
+  object-fit: cover;
+}
+
+.qr-set-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.qr-set-title {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qr-set-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.qr-set-badge {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.qr-set-check {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--bg);
+}
+
+.qr-set[aria-pressed='true'] .qr-set-check {
+  border-color: var(--accent);
+  background: var(--accent);
+}

@@ -6,12 +6,13 @@ import './Navbar.css'
 // Keep in sync with the menu breakpoint in Navbar.css
 const PHONE_QUERY = '(max-width: 1024px)'
 
-export type ToolPage = 'upload' | 'booth' | 'settings'
+export type ToolPage = 'upload' | 'booth' | 'qr' | 'settings'
 export type Page = 'home' | ToolPage
 
 const TOOL_LINKS: { page: ToolPage; href: string; label: string }[] = [
   { page: 'upload', href: '/admin/upload', label: 'Upload' },
   { page: 'booth', href: '/admin/booth', label: 'Booth' },
+  { page: 'qr', href: '/admin/qr', label: 'QR codes' },
   { page: 'settings', href: '/admin/settings', label: 'Settings' },
 ]
 

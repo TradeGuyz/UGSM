@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { flushSync } from 'react-dom'
 import { LuImagePlus, LuMinus, LuPlus, LuPrinter, LuRotateCcw, LuScissors, LuX } from 'react-icons/lu'
 import { Select } from '../Select.tsx'
 import {
-  CARD_LAYOUT,
+  CENTERED,
   MODES,
   PHOTOS_PER_SET,
   PRINT_H,
@@ -13,96 +12,34 @@ import {
   SHEET_W,
   STRIP_LAYOUT,
   type Mode,
-  type SheetLayout,
+  type PhotoPosition,
 } from './layouts.ts'
-import { Back, Print, QrCard, Strip } from './pieces.tsx'
+import { Print, Strip } from './pieces.tsx'
+import { Section, Switch } from './controls.tsx'
+import { loadUsed, PX_PER_INCH, place, readStorage, writeStorage } from './storage.ts'
 import { isThemeId, THEME_IDS, THEMES, type ThemeId } from './themes.ts'
 import { displayablePhoto, isPhotoFile, looksLikeHeic, PHOTO_ACCEPT, useCollections } from '../rankuogClient.ts'
-import { stripLabel, uploadPhotos, type UploadResult, type UploadState } from './upload.ts'
+import { stripLabel, uploadPhotos, type UploadState } from './upload.ts'
 import './booth.css'
 
-const PX_PER_INCH = 96
-// How long to wait for the QR codes to load before giving up on printing
-const QR_TIMEOUT_MS = 15_000
-
-type Photo = { file: File; url: string }
-
-function readStorage(key: string): string | null {
-  try {
-    return localStorage.getItem(key)
-  } catch {
-    return null
-  }
-}
-
-function writeStorage(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value)
-  } catch {
-    // Storage unavailable; the setting just won't be remembered
-  }
-}
-
-function loadUsed(layout: SheetLayout): Set<number> {
-  try {
-    const saved: unknown = JSON.parse(readStorage(layout.storageKey) ?? '[]')
-    if (Array.isArray(saved)) return new Set(saved.filter((n): n is number => typeof n === 'number'))
-  } catch {
-    // Invalid saved value; start with a fresh sheet
-  }
-  return new Set()
-}
+// position: which part of the photo shows when it's cropped to its box; reset when the photo changes
+type Photo = { file: File; url: string; position: PhotoPosition }
 
 const isMode = (value: string | null): value is Mode => MODES.some((m) => m.mode === value)
 
-/** Positions a piece on the sheet; sizes in inches */
-function place(x: number, y: number, w: number, h: number) {
-  return { left: `${x}in`, top: `${y}in`, width: `${w}in`, height: `${h}in` }
+/** Today in the local time zone, as YYYY-MM-DD (the value a date input uses) */
+function todayIso(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-// A back lands behind its front when the printer flips the sheet on its long edge: same row, mirrored
-function placeBack(x: number, y: number, w: number, h: number) {
-  return place(SHEET_W - x - w, y, w, h)
-}
-
-/**
- * True once every QR code on the sheets has loaded. A QR code that fails, or takes longer than
- * QR_TIMEOUT_MS, counts as not loaded, so a sheet never prints with a blank where a code should be.
- */
-async function qrCodesLoaded(container: HTMLElement | null): Promise<boolean> {
-  const images = [...(container?.querySelectorAll<HTMLImageElement>('.qr img') ?? [])]
-  const timeout = new Promise<false>((resolve) => setTimeout(() => resolve(false), QR_TIMEOUT_MS))
-  const results = await Promise.all(
-    images.map((img) =>
-      Promise.race([
-        img.decode().then(
-          () => img.naturalWidth > 0,
-          () => false,
-        ),
-        timeout,
-      ]),
-    ),
-  )
-  return results.every(Boolean)
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="booth-section">
-      <h2>{title}</h2>
-      {children}
-    </section>
-  )
-}
-
-function Switch({ checked, onChange, children }: { checked: boolean; onChange: (checked: boolean) => void; children: ReactNode }) {
-  return (
-    <label className="booth-switch">
-      <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      <span className="booth-switch-track" aria-hidden="true" />
-      <span>{children}</span>
-    </label>
-  )
+/** "Nov 17, 2026" (in the browser's own style) from YYYY-MM-DD; empty for no date */
+function formatDate(iso: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+  if (!match) return ''
+  // Built from its parts so it stays on that day; new Date('YYYY-MM-DD') would be midnight UTC
+  const day = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  return day.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 function Booth() {
@@ -119,35 +56,32 @@ function Booth() {
   })
   const [sessions, setSessions] = useState(1)
   const [decor, setDecor] = useState(() => readStorage('photo-strip-decor') !== 'off')
-  const [qr, setQr] = useState(() => readStorage('photo-strip-qr') !== 'off')
+  const [upload, setUpload] = useState(() => readStorage('booth-upload') !== 'off')
   const collections = useCollections()
   const [chosenCollection, setCollectionId] = useState(() => readStorage('booth-collection') ?? '')
   // The saved choice if it still exists, otherwise the first collection
   const collectionId = collections?.some((c) => c.id === chosenCollection) ? chosenCollection : (collections?.[0]?.id ?? '')
-  // Cut-out slots on the current sheet, remembered separately for strips and cards
-  const [used, setUsed] = useState(() => ({ strips: loadUsed(STRIP_LAYOUT), cards: loadUsed(CARD_LAYOUT) }))
-  const [results, setResults] = useState<UploadResult[]>([])
+  // Cut-out slots on the current strip sheet
+  const [usedSlots, setUsedSlots] = useState(() => loadUsed(STRIP_LAYOUT))
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [scale, setScale] = useState(1)
-  const [qrAttempt, setQrAttempt] = useState(0)
 
   const uploadRef = useRef<UploadState | null>(null)
-  // Set when the last print stopped because a QR code didn't load
-  const failedQr = useRef(false)
   const wrapRef = useRef<HTMLDivElement>(null)
   const photosRef = useRef(photos)
   const singleInputRef = useRef<HTMLInputElement>(null)
   const pickIndexRef = useRef(0)
-  // Today's date for the strip footer, worked out once when the page opens
-  const [date] = useState(() => new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }))
+  // The strip footer's date, as YYYY-MM-DD. Starts as today each time the page opens; empty leaves it off.
+  const [dateValue, setDateValue] = useState(todayIso)
+  const date = formatDate(dateValue)
 
   // Settings that should survive a reload
   useEffect(() => writeStorage('photo-strip-mode', mode), [mode])
   useEffect(() => writeStorage('booth-title', title), [title])
   useEffect(() => writeStorage('booth-theme', theme), [theme])
   useEffect(() => writeStorage('photo-strip-decor', decor ? 'on' : 'off'), [decor])
-  useEffect(() => writeStorage('photo-strip-qr', qr ? 'on' : 'off'), [qr])
+  useEffect(() => writeStorage('booth-upload', upload ? 'on' : 'off'), [upload])
   useEffect(() => {
     if (collectionId) writeStorage('booth-collection', collectionId)
   }, [collectionId])
@@ -170,26 +104,18 @@ function Booth() {
   }, [])
 
   const photoUrls = photos.map((p) => p?.url)
-  // Positions that have a photo, in order; uploads go in this order, so results[k] belongs to filledIndexes[k]
+  const positions = photos.map((p) => p?.position)
   const filledIndexes = photos.flatMap((p, i) => (p ? [i] : []))
   const photoCount = filledIndexes.length
-  const digitalOnly = mode === 'cards'
-  const sheetMode = mode === 'prints' ? null : mode
-  const layout = sheetMode === 'strips' ? STRIP_LAYOUT : sheetMode === 'cards' ? CARD_LAYOUT : null
-  const usedSlots = sheetMode ? used[sheetMode] : new Set<number>()
+  const layout = mode === 'strips' ? STRIP_LAYOUT : null
   const freeGroups = layout ? layout.groups.filter((g) => g.every((slot) => !usedSlots.has(slot))) : []
   const sessionCount = Math.max(1, Math.min(freeGroups.length, sessions))
   const filled = new Set(freeGroups.slice(0, sessionCount).flat())
   const sheetFull = layout !== null && freeGroups.length === 0
-  // Digital only always uploads: the QR card is the whole point
-  const uploading = qr || digitalOnly
-  const needsPhotos = digitalOnly && photoCount === 0
-  const firstResult = results[0]
   const themeHasDecor = Object.keys(THEMES[theme].decor).length > 0
   const showDecor = decor && themeHasDecor
   function resetUpload() {
     uploadRef.current = null
-    setResults([])
   }
 
   // Puts files into the given positions, releasing the previews they replace
@@ -200,7 +126,7 @@ function Booth() {
       for (const [index, file] of entries) {
         const old = next[index]
         if (old) URL.revokeObjectURL(old.url)
-        next[index] = file ? { file, url: URL.createObjectURL(file) } : undefined
+        next[index] = file ? { file, url: URL.createObjectURL(file), position: CENTERED } : undefined
       }
       return next
     })
@@ -239,14 +165,16 @@ function Booth() {
       singleInputRef.current?.click()
     },
     onDropFile: (index: number, file: File) => void addPhotos([[index, file]]),
+    // Only how the photo is cropped on paper changes, so an upload already done still stands
+    onMove: (index: number, position: PhotoPosition) =>
+      setPhotos((prev) => prev.map((p, i) => (i === index && p ? { ...p, position } : p))),
   }
 
-  const pieceProps = { photoUrls, title, date, theme, decor: showDecor, actions: photoActions }
+  const pieceProps = { photoUrls, positions, title, date, theme, decor: showDecor, actions: photoActions }
 
   function saveUsed(next: Set<number>) {
-    if (!layout || !sheetMode) return
-    writeStorage(layout.storageKey, JSON.stringify([...next]))
-    setUsed((prev) => ({ ...prev, [sheetMode]: next }))
+    writeStorage(STRIP_LAYOUT.storageKey, JSON.stringify([...next]))
+    setUsedSlots(next)
   }
 
   function togglePair(slot: number) {
@@ -258,10 +186,12 @@ function Booth() {
     saveUsed(next)
   }
 
+  // Uploads first (a retry carries on where it stopped, so nothing goes up twice), then prints.
+  // The QR code for these photos is printed separately, from the QR codes page.
   async function handlePrint() {
-    if (uploading && photoCount) {
+    if (upload && photoCount) {
       if (!collectionId) {
-        setNotice(digitalOnly ? 'Choose a collection to upload to.' : 'Choose a collection to upload to, or turn off the QR code.')
+        setNotice('Choose a collection to upload to, or turn off uploading.')
         return
       }
       if (uploadRef.current?.collectionId !== collectionId) {
@@ -272,105 +202,54 @@ function Booth() {
       try {
         await uploadPhotos(state, filledIndexes.map((i) => (photos[i] as Photo).file), title, setNotice)
       } catch (err) {
-        setResults([...state.results])
-        const fallback = digitalOnly ? '' : ' Turn off the QR code to print without it.'
-        setNotice(`${err instanceof Error ? err.message : 'Upload failed.'}${fallback}`)
+        setNotice(`${err instanceof Error ? err.message : 'Upload failed.'} Press Print to try again, or turn off uploading to print without it.`)
+        return
+      } finally {
         setBusy(false)
-        return
       }
-      // Show the QR codes (fetching them afresh if this is a retry), then make sure every one loaded
-      flushSync(() => {
-        setResults([...state.results])
-        if (failedQr.current) setQrAttempt((n) => n + 1)
-        setNotice('Photos uploaded. Loading the QR codes…')
-      })
-      const ready = await qrCodesLoaded(wrapRef.current)
-      setBusy(false)
-      failedQr.current = !ready
-      if (!ready) {
-        setNotice(
-          "The photos uploaded, but a QR code didn't load, so nothing was printed. Check the internet connection and press Print again; the photos won't upload twice.",
-        )
-        return
-      }
-      setNotice('Photos uploaded')
+      const label = collections?.find((c) => c.id === collectionId)?.label ?? 'the collection'
+      setNotice(`Photos uploaded to ${label}. Print their QR card from the QR codes page.`)
     }
     window.print()
   }
 
-  let frontPieces: ReactNode
-  let backPieces: ReactNode
-  if (layout) {
-    frontPieces = layout.slots.map(({ x, y }, s) => {
-      const style = place(x, y, layout.w, layout.h)
-      // A strip being printed holds the photo buttons; empty and cut-out spaces toggle when clicked
-      if (filled.has(s)) {
-        return (
-          <div key={s} className="slot filled" style={style}>
-            {digitalOnly ? (
-              <QrCard
-                title={title}
-                date={date}
-                result={firstResult}
-                collectionId={collectionId}
-                hasPhotos={photoCount > 0}
-                theme={theme}
-                decor={showDecor}
-                qrAttempt={qrAttempt}
-              />
-            ) : (
+  const frontPieces: ReactNode = layout
+    ? layout.slots.map(({ x, y }, s) => {
+        const style = place(x, y, layout.w, layout.h)
+        // A strip being printed holds the photo buttons; empty and cut-out spaces toggle when clicked
+        if (filled.has(s)) {
+          return (
+            <div key={s} className="slot filled" style={style}>
               <Strip {...pieceProps} />
-            )}
-          </div>
+            </div>
+          )
+        }
+        const used = usedSlots.has(s)
+        return (
+          <button
+            type="button"
+            key={s}
+            className={`slot ${used ? 'used' : 'free'}`}
+            style={style}
+            onClick={() => togglePair(s)}
+            title={used ? 'Mark as free' : 'Mark as cut out'}
+          >
+            {used ? 'Cut out' : 'Free'}
+          </button>
         )
-      }
-      const used = usedSlots.has(s)
-      return (
-        <button
-          type="button"
-          key={s}
-          className={`slot ${used ? 'used' : 'free'}`}
-          style={style}
-          onClick={() => togglePair(s)}
-          title={used ? 'Mark as free' : 'Mark as cut out'}
-        >
-          {used ? 'Cut out' : 'Free'}
-        </button>
-      )
-    })
-    backPieces = digitalOnly ? null : [...filled].map((s) => (
-      <div key={s} className="back" style={placeBack(layout.slots[s].x, layout.slots[s].y, layout.w, layout.h)}>
-        <Back title={title} result={firstResult} collectionId={collectionId} hasPhotos={photoCount > 0} theme={theme} decor={showDecor} qrAttempt={qrAttempt} />
-      </div>
-    ))
-  } else {
-    frontPieces = PRINT_SLOTS.map(({ x, y }, i) => (
-      <div key={i} className="slot filled" style={place(x, y, PRINT_W, PRINT_H)}>
-        <Print {...pieceProps} index={i} />
-      </div>
-    ))
-    backPieces = PRINT_SLOTS.map(({ x, y }, i) => (
-      <div key={i} className="back" style={placeBack(x, y, PRINT_W, PRINT_H)}>
-        <Back
-          title={title}
-          result={results[filledIndexes.indexOf(i)] ?? firstResult}
-          collectionId={collectionId}
-          hasPhotos={photoCount > 0}
-          theme={theme}
-          decor={showDecor}
-          qrAttempt={qrAttempt}
-        />
-      </div>
-    ))
-  }
+      })
+    : PRINT_SLOTS.map(({ x, y }, i) => (
+        <div key={i} className="slot filled" style={place(x, y, PRINT_W, PRINT_H)}>
+          <Print {...pieceProps} index={i} />
+        </div>
+      ))
 
   const sheetStyle = {
     transform: scale < 1 ? `scale(${scale})` : undefined,
     marginBottom: scale < 1 ? `${-(1 - scale) * SHEET_H * PX_PER_INCH}px` : undefined,
   }
 
-  const printLabel = busy ? 'Uploading…' : digitalOnly ? 'Upload & print QR card' : qr && photoCount ? 'Upload & print' : 'Print'
-  const showBack = qr && !digitalOnly
+  const printLabel = busy ? 'Uploading…' : upload && photoCount ? 'Upload & print' : 'Print'
 
   return (
     <div className={`booth mode-${mode} theme-${theme}`}>
@@ -412,7 +291,11 @@ function Booth() {
                     aria-label={photo ? `Change photo ${i + 1}` : `Add photo ${i + 1}`}
                     title={photo ? 'Change this photo' : 'Add a photo here'}
                   >
-                    {photo ? <img src={photo.url} alt="" /> : <LuPlus aria-hidden="true" />}
+                    {photo ? (
+                      <img src={photo.url} alt="" style={{ objectPosition: `${photo.position.x}% ${photo.position.y}%` }} />
+                    ) : (
+                      <LuPlus aria-hidden="true" />
+                    )}
                     <span className="booth-thumb-number">{i + 1}</span>
                   </button>
                   {photo && (
@@ -463,6 +346,22 @@ function Booth() {
               <span>Title</span>
               <input type="text" value={title} maxLength={60} onChange={(e) => setTitle(e.target.value)} />
             </label>
+            <div className="booth-field">
+              <label htmlFor="booth-date">Date</label>
+              <div className="booth-field-row">
+                <input id="booth-date" type="date" value={dateValue} onChange={(e) => setDateValue(e.target.value)} />
+                <button
+                  type="button"
+                  className="booth-button"
+                  onClick={() => setDateValue(todayIso())}
+                  disabled={dateValue === todayIso()}
+                  title="Use today's date"
+                >
+                  Today
+                </button>
+              </div>
+              <p className="booth-hint">Clear it to leave the date off.</p>
+            </div>
             <label className="booth-field">
               <span>Theme</span>
               <Select value={theme} onChange={(e) => setTheme(e.target.value as ThemeId)}>
@@ -483,7 +382,7 @@ function Booth() {
           {layout && (
             <Section title="Paper">
               <div className="booth-stepper">
-                <span id="booth-sessions-label">{digitalOnly ? 'Cards to print' : 'Sessions to print'}</span>
+                <span id="booth-sessions-label">Sessions to print</span>
                 <div role="group" aria-labelledby="booth-sessions-label">
                   <button
                     type="button"
@@ -507,7 +406,7 @@ function Booth() {
               <p className="booth-hint">
                 {sheetFull
                   ? 'This sheet is used up. Load a fresh sheet, then press New sheet.'
-                  : `${digitalOnly ? 'Each session is one QR card.' : 'Each session is 2 strips side by side.'} ${freeGroups.length} of ${layout.groups.length} left on this sheet.`}
+                  : `Each session is 2 strips side by side. ${freeGroups.length} of ${layout.groups.length} left on this sheet.`}
               </p>
               <div className="booth-row">
                 <button
@@ -526,55 +425,49 @@ function Booth() {
             </Section>
           )}
 
-          <Section title="QR code">
-            {!digitalOnly && (
-              <Switch checked={qr} onChange={setQr}>
-                Print a QR code on the back
-              </Switch>
+          <Section title="Upload">
+            <Switch checked={upload} onChange={setUpload}>
+              Upload the photos when printing
+            </Switch>
+            {upload && (
+              <label className="booth-field">
+                <span>Upload photos to</span>
+                <Select
+                  value={collectionId}
+                  onChange={(e) => {
+                    setCollectionId(e.target.value)
+                    resetUpload()
+                  }}
+                  disabled={!collections?.length || busy}
+                >
+                  {collections === null && <option value="">Loading…</option>}
+                  {collections?.length === 0 && <option value="">No collections yet</option>}
+                  {collections?.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </Select>
+              </label>
             )}
-            {uploading && (
-              <>
-                <label className="booth-field">
-                  <span>Upload photos to</span>
-                  <Select
-                    value={collectionId}
-                    onChange={(e) => {
-                      setCollectionId(e.target.value)
-                      resetUpload()
-                    }}
-                    disabled={!collections?.length || busy}
-                  >
-                    {collections === null && <option value="">Loading…</option>}
-                    {collections?.length === 0 && <option value="">No collections yet</option>}
-                    {collections?.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </Select>
-                </label>
-                <p className="booth-hint">
-                  {collections?.length === 0 ? (
-                    <>
-                      Add a collection key in <a href="/admin/settings">Settings</a> first.
-                    </>
-                  ) : digitalOnly ? (
-                    'The photos upload, then only a small card with the QR code prints. No photos go on paper.'
-                  ) : (
-                    'Photos upload when you print. Print two-sided and flip on the long edge.'
-                  )}
-                </p>
-              </>
-            )}
+            <p className="booth-hint">
+              {upload && collections?.length === 0 ? (
+                <>
+                  Add a collection key in <a href="/admin/settings">Settings</a> first.
+                </>
+              ) : (
+                <>
+                  QR codes print separately: open <a href="/admin/qr">QR codes</a>, pick the collection and choose these photos.
+                </>
+              )}
+            </p>
           </Section>
 
           <div className="booth-print">
-            <button type="button" className="booth-button primary wide" onClick={handlePrint} disabled={busy || sheetFull || needsPhotos}>
+            <button type="button" className="booth-button primary wide" onClick={handlePrint} disabled={busy || sheetFull}>
               <LuPrinter aria-hidden="true" /> {printLabel}
             </button>
-            <p className="booth-hint">
-              {needsPhotos ? 'Add at least one photo to make a QR card.' : 'Set the printer to “Actual size” / 100%.'}
-            </p>
+            <p className="booth-hint">Set the printer to “Actual size” / 100%.</p>
             {notice && (
               <p className="booth-notice" role="status">
                 {notice}
@@ -584,18 +477,9 @@ function Booth() {
         </aside>
 
         <div className="booth-preview" ref={wrapRef}>
-          {showBack && <p className="booth-sheet-label">Front</p>}
           <div className="booth-sheet" style={sheetStyle}>
             {frontPieces}
           </div>
-          {showBack && (
-            <>
-              <p className="booth-sheet-label">Back · prints on the reverse side</p>
-              <div className="booth-sheet booth-sheet-back" style={sheetStyle}>
-                {backPieces}
-              </div>
-            </>
-          )}
         </div>
       </div>
     </div>

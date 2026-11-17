@@ -141,3 +141,34 @@ export function sendPhoto(
     xhr.send(form)
   })
 }
+
+/** A photo already in a collection. Photos uploaded together from the Booth share a `strip` name. */
+export type CollectionPhoto = {
+  id: string
+  url: string
+  short_url?: string
+  strip?: string | null
+  caption?: string | null
+  created_at: string
+}
+
+/** Thrown when the server says the PIN session has ended */
+export class SessionEndedError extends Error {}
+
+/** Every photo in a collection, as RankUOG lists them */
+export async function fetchCollectionPhotos(collectionId: string, signal?: AbortSignal): Promise<CollectionPhoto[]> {
+  let res: Response
+  try {
+    res = await fetch(`${apiBase(collectionId)}/photos`, { credentials: 'same-origin', signal })
+  } catch (err) {
+    if (signal?.aborted) throw err
+    throw new Error("Couldn't reach the server. Check your connection and try again.")
+  }
+  const body = (await res.json().catch(() => ({}))) as { photos?: unknown; error?: string }
+  if (res.status === 401 && body.error === 'Locked') throw new SessionEndedError('Your session ended.')
+  if (!res.ok) throw new Error(`Couldn't load the photos (HTTP ${res.status}): ${body.error ?? 'no details'}.`)
+  if (!Array.isArray(body.photos)) return []
+  return body.photos.filter(
+    (p): p is CollectionPhoto => typeof p?.id === 'string' && typeof p.url === 'string' && typeof p.created_at === 'string',
+  )
+}

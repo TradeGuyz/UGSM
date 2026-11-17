@@ -2,13 +2,12 @@
 export const SHEET_W = 8.5
 export const SHEET_H = 11
 
-export type Mode = 'strips' | 'prints' | 'cards'
+export type Mode = 'strips' | 'prints'
 export type Slot = { x: number; y: number }
 
 export const MODES: { mode: Mode; label: string; detail: string }[] = [
   { mode: 'strips', label: 'Photo strips', detail: '4 photos per strip' },
   { mode: 'prints', label: '4 × 5 prints', detail: '1 photo each' },
-  { mode: 'cards', label: 'Digital only', detail: 'Small QR card' },
 ]
 
 /** A layout that can be printed a bit at a time on the same sheet, remembering what's cut out */
@@ -38,7 +37,7 @@ export const STRIP_LAYOUT: SheetLayout = {
   storageKey: 'photo-strip-used-slots',
 }
 
-// 4 × 4 QR cards of 2.125 × 2.75 in for people who only want their photos digitally.
+// 4 × 4 QR cards of 2.125 × 2.75 in, printed on their own from the QR codes page.
 // One card per session, bottom row first for the same reason as the strips.
 const CARD_COLS = 4
 const CARD_ROWS = 4
@@ -64,3 +63,10 @@ export const PRINT_SLOTS: Slot[] = [
 ]
 
 export const PHOTOS_PER_SET = 4
+
+/**
+ * Which part of a photo shows when it's cropped to fill its box, as CSS object-position
+ * percentages: 0 shows the left/top edge, 100 the right/bottom edge.
+ */
+export type PhotoPosition = { x: number; y: number }
+export const CENTERED: PhotoPosition = { x: 50, y: 50 }

@@ -3,6 +3,7 @@ import Booth from './booth/Booth.tsx'
 import Landing from './Landing.tsx'
 import Navbar, { type Page } from './Navbar.tsx'
 import PinScreen from './PinScreen.tsx'
+import QrPage from './qr/QrPage.tsx'
 import Settings from './Settings.tsx'
 import UploadPage from './upload/UploadPage.tsx'
 import { usePinSession } from './usePinSession.ts'
@@ -24,7 +25,7 @@ function initialTheme(): Theme {
 function pageFromPath(path: string): Page {
   const match = /^\/admin(?:\/([^/]*))?\/?$/.exec(path)
   if (!match) return 'home'
-  if (match[1] === 'booth' || match[1] === 'settings') return match[1]
+  if (match[1] === 'booth' || match[1] === 'qr' || match[1] === 'settings') return match[1]
   if (match[1] !== 'upload') window.history.replaceState(null, '', '/admin/upload')
   return 'upload'
 }
@@ -61,6 +62,7 @@ function App() {
         <main className="tool">
           {status === 'unlocked' && page === 'upload' && <UploadPage onSessionExpired={lock} />}
           {status === 'unlocked' && page === 'booth' && <Booth />}
+          {status === 'unlocked' && page === 'qr' && <QrPage onSessionExpired={lock} />}
           {status === 'unlocked' && page === 'settings' && <Settings onSessionExpired={lock} />}
           {status === 'locked' && <PinScreen onUnlock={unlock} />}
         </main>
