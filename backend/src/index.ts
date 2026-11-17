@@ -29,8 +29,9 @@ if (store.isNew && importKey) {
   })
 }
 
-const sessionSecret = env.SESSION_SECRET
-const proxySecret = env.API_SIGNATURE_TOKEN
+// Trimmed: a pasted secret often picks up a trailing newline or space
+const sessionSecret = env.SESSION_SECRET?.trim() || undefined
+const proxySecret = env.API_SIGNATURE_TOKEN?.trim() || undefined
 // Cloud Run sets K_SERVICE; there these are needed, locally they're optional
 if (env.K_SERVICE) {
   if (!sessionSecret) console.warn('SESSION_SECRET is not set: every restart will sign everyone out')

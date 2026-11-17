@@ -53,23 +53,29 @@ function header(req: IncomingMessage, name: string): string | undefined {
 /**
  * Netlify's signed proxy (`signed = "API_SIGNATURE_TOKEN"` in netlify.toml) adds X-Nf-Sign, an HS256 JWT
  * made with that token. A valid one proves the request came through the Netlify site.
+ * Returns why a request was turned away, or null when the signature is good.
  */
-function verifyNetlifySignature(token: string | undefined, secret: string): boolean {
-  const [head, payload, signature] = token?.split('.') ?? []
-  if (!head || !payload || !signature) return false
+function netlifySignatureProblem(token: string | undefined, secret: string): string | null {
+  if (!token) return 'no X-Nf-Sign header (is API_SIGNATURE_TOKEN set in Netlify, and was the site redeployed after?)'
+  const [head, payload, signature] = token.split('.')
+  if (!head || !payload || !signature) return 'X-Nf-Sign is not a JWT'
+  let alg: unknown
+  let claims: { exp?: unknown; iss?: unknown; [key: string]: unknown }
+  try {
+    alg = (JSON.parse(Buffer.from(head, 'base64url').toString()) as { alg?: unknown }).alg
+    claims = JSON.parse(Buffer.from(payload, 'base64url').toString()) as typeof claims
+  } catch {
+    return 'X-Nf-Sign is not a JWT'
+  }
+  if (alg !== 'HS256') return `X-Nf-Sign uses ${String(alg)}, expected HS256`
   const expected = Buffer.from(createHmac('sha256', secret).update(`${head}.${payload}`).digest('base64url'))
   const given = Buffer.from(signature)
-  if (expected.length !== given.length || !timingSafeEqual(expected, given)) return false
-  try {
-    const { alg } = JSON.parse(Buffer.from(head, 'base64url').toString()) as { alg?: unknown }
-    const claims = JSON.parse(Buffer.from(payload, 'base64url').toString()) as { exp?: unknown; iss?: unknown }
-    if (alg !== 'HS256') return false
-    if (claims.iss !== undefined && claims.iss !== 'netlify') return false
-    if (typeof claims.exp === 'number' && claims.exp * 1000 < Date.now()) return false
-    return true
-  } catch {
-    return false
+  if (expected.length !== given.length || !timingSafeEqual(expected, given)) {
+    return 'X-Nf-Sign signature does not match: API_SIGNATURE_TOKEN differs between Netlify and Cloud Run'
   }
+  if (claims.iss !== undefined && claims.iss !== 'netlify') return `X-Nf-Sign issuer is ${String(claims.iss)}`
+  if (typeof claims.exp === 'number' && claims.exp * 1000 < Date.now()) return 'X-Nf-Sign has expired'
+  return null
 }
 
 export type AdminOptions = {
@@ -330,8 +336,12 @@ export function createAdminApi(store: Store, options: AdminOptions = {}): Middle
 
     // Behind Netlify, turn away anything that didn't come through the site, e.g. calls straight to
     // the Cloud Run URL. Otherwise those could fake the client-IP header and dodge the PIN lockout.
-    if (proxySecret && path !== '/api/health' && !verifyNetlifySignature(header(req, 'x-nf-sign'), proxySecret)) {
-      return json(res, 403, { error: 'Use the website to reach this API' })
+    if (proxySecret && path !== '/api/health') {
+      const problem = netlifySignatureProblem(header(req, 'x-nf-sign'), proxySecret)
+      if (problem) {
+        console.warn(`Refused ${req.method} ${path}: ${problem}`)
+        return json(res, 403, { error: 'Use the website to reach this API' })
+      }
     }
 
     route(req, res, path, search ? `?${search}` : '')
