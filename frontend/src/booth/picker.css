@@ -1,0 +1,244 @@
+/* "Choose from a collection" dialog in the Booth */
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  width: min(760px, calc(100vw - 32px));
+  max-height: min(820px, calc(100vh - 32px));
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg);
+  color: var(--text);
+  text-align: left;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+
+.picker:not([open]) {
+  display: none;
+}
+
+.picker::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.picker-header,
+.picker-toolbar,
+.picker-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+}
+
+.picker-header {
+  justify-content: space-between;
+  border-bottom: 1px solid var(--surface);
+}
+
+.picker-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.picker-toolbar {
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--surface);
+}
+
+.picker-toolbar .select {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.picker-toolbar select,
+.picker-toolbar input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.picker-toolbar input {
+  flex: 2 1 200px;
+  width: auto;
+}
+
+.picker-icon-button {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+
+.picker-icon-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.picker-spin {
+  animation: picker-spin 0.9s linear infinite;
+}
+
+@keyframes picker-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .picker-spin {
+    animation: none;
+  }
+}
+
+.picker-body {
+  flex: 1;
+  min-height: 160px;
+  padding: 6px 18px 12px;
+  overflow-y: auto;
+}
+
+.picker-message {
+  margin: 24px 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+.picker-message.error {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.picker-message a {
+  color: var(--accent);
+}
+
+.picker-set {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--surface);
+}
+
+.picker-set:last-child {
+  border-bottom: none;
+}
+
+.picker-set-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.picker-set-header > div {
+  min-width: 0;
+}
+
+.picker-set-title {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-set-meta {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.picker-set-header .booth-button {
+  flex-shrink: 0;
+}
+
+.picker-photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.picker-photo {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.picker-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.picker-photo[aria-pressed='true'] {
+  border-color: var(--accent);
+}
+
+.picker-photo[aria-pressed='true'] img {
+  opacity: 0.8;
+}
+
+.picker-photo:focus-visible,
+.picker-icon-button:focus-visible,
+.picker-toolbar select:focus-visible,
+.picker-toolbar input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.picker-photo-order {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.picker-footer {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  border-top: 1px solid var(--surface);
+}
+
+.picker-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.picker-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}

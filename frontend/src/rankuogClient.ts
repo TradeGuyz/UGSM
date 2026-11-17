@@ -172,3 +172,17 @@ export async function fetchCollectionPhotos(collectionId: string, signal?: Abort
     (p): p is CollectionPhoto => typeof p?.id === 'string' && typeof p.url === 'string' && typeof p.created_at === 'string',
   )
 }
+
+/** Downloads a photo from a collection, so the Booth can use it like one chosen from this computer */
+export async function downloadCollectionPhoto(photo: CollectionPhoto): Promise<File> {
+  let res: Response
+  try {
+    res = await fetch(photo.url)
+  } catch {
+    throw new Error("Couldn't download the photos. Check your connection and try again.")
+  }
+  if (!res.ok) throw new Error(`Couldn't download a photo (HTTP ${res.status}).`)
+  const blob = await res.blob()
+  const type = blob.type.startsWith('image/') ? blob.type : 'image/jpeg'
+  return new File([blob], `${photo.id}.${type.split('/')[1] ?? 'jpg'}`, { type })
+}

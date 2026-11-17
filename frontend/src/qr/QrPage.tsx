@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { LuCheck, LuPrinter, LuRefreshCw, LuRotateCcw, LuScissors, LuX } from 'react-icons/lu'
 import { Select } from '../Select.tsx'
@@ -7,7 +7,8 @@ import { CARD_LAYOUT, SHEET_H, SHEET_W } from '../booth/layouts.ts'
 import { QrCard } from '../booth/pieces.tsx'
 import { loadPrintMargin, loadUsed, marginScale, place, printedSize, PX_PER_INCH, readStorage, savePrintMargin, writeStorage } from '../booth/storage.ts'
 import { isThemeId, THEME_IDS, THEMES, type ThemeId } from '../booth/themes.ts'
-import { fetchCollectionPhotos, SessionEndedError, useCollections, type CollectionPhoto } from '../rankuogClient.ts'
+import { formatSetDate as formatDate, formatSetTime as formatTime, setSearchText, useCollectionSets, type PhotoSet } from '../collectionSets.ts'
+import { useCollections } from '../rankuogClient.ts'
 import '../booth/booth.css'
 import './qr.css'
 
@@ -17,39 +18,6 @@ const QR_TIMEOUT_MS = 15_000
 const PRINTED_KEY = 'qr-printed'
 const MAX_PRINTED = 1000
 const THUMBS_SHOWN = 4
-
-/** Photos uploaded together (one Booth session), or a single photo uploaded on its own */
-type PhotoSet = {
-  key: string
-  /** Empty when the photos had no caption; the collection's name stands in */
-  title: string
-  created: string
-  photos: CollectionPhoto[]
-}
-
-// The Booth names a strip "<title> YYYY-MM-DD HH:MM:SS"; the title alone is the caption
-const STRIP_STAMP = / \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
-
-function groupPhotos(photos: CollectionPhoto[]): PhotoSet[] {
-  const sets = new Map<string, CollectionPhoto[]>()
-  for (const photo of photos) {
-    const key = photo.strip ? `strip:${photo.strip}` : `photo:${photo.id}`
-    const list = sets.get(key)
-    if (list) list.push(photo)
-    else sets.set(key, [photo])
-  }
-  return [...sets.entries()]
-    .map(([key, list]) => {
-      list.sort((a, b) => a.created_at.localeCompare(b.created_at))
-      const first = list[0]
-      const title = first.caption?.trim() || first.strip?.replace(STRIP_STAMP, '').trim() || ''
-      return { key, title, created: first.created_at, photos: list }
-    })
-    .sort((a, b) => b.created.localeCompare(a.created))
-}
-
-const formatDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
-const formatTime = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
 
 function loadPrinted(): Set<string> {
   try {
@@ -93,9 +61,7 @@ function QrPage({ onSessionExpired }: Props) {
   // The saved choice if it still exists, otherwise the first collection
   const collection = collections?.find((c) => c.id === chosenCollection) ?? collections?.[0]
   const collectionId = collection?.id ?? ''
-  const [photos, setPhotos] = useState<{ collectionId: string; list: CollectionPhoto[] } | null>(null)
-  const [loadError, setLoadError] = useState('')
-  const [reload, setReload] = useState(0)
+  const { sets, hasLoaded, loading, error: loadError, refresh } = useCollectionSets(collectionId, onSessionExpired)
   const [filter, setFilter] = useState('')
   // Sets chosen for this sheet, in the order they were picked
   const [queue, setQueue] = useState<string[]>([])
@@ -121,24 +87,6 @@ function QrPage({ onSessionExpired }: Props) {
   useEffect(() => writeStorage('qr-theme', theme), [theme])
   useEffect(() => writeStorage('qr-decor', decor ? 'on' : 'off'), [decor])
 
-  // Load the chosen collection's photos (again when Refresh is pressed)
-  useEffect(() => {
-    if (!collectionId) return
-    const controller = new AbortController()
-    fetchCollectionPhotos(collectionId, controller.signal).then(
-      (list) => {
-        setPhotos({ collectionId, list })
-        setLoadError('')
-      },
-      (err: unknown) => {
-        if (controller.signal.aborted) return
-        if (err instanceof SessionEndedError) onSessionExpired()
-        else setLoadError(err instanceof Error ? err.message : "Couldn't load the photos.")
-      },
-    )
-    return () => controller.abort()
-  }, [collectionId, reload, onSessionExpired])
-
   // Shrink the Letter-size preview to fit its column (printing always uses the real size)
   useEffect(() => {
     const wrap = wrapRef.current
@@ -150,16 +98,12 @@ function QrPage({ onSessionExpired }: Props) {
     return () => observer.disconnect()
   }, [])
 
-  // Photos from an earlier collection stay hidden until the new one has loaded
-  const current = photos?.collectionId === collectionId ? photos.list : null
-  const sets = useMemo(() => (current ? groupPhotos(current) : []), [current])
-  const loading = Boolean(collectionId) && current === null && !loadError
   const fallbackTitle = collection?.label ?? 'Photos'
   const printedKey = (set: PhotoSet) => `${collectionId}|${set.key}`
 
   const query = filter.trim().toLowerCase()
   const shown = query
-    ? sets.filter((s) => `${s.title} ${formatDate(s.created)} ${formatTime(s.created)}`.toLowerCase().includes(query))
+    ? sets.filter((s) => setSearchText(s).includes(query))
     : sets
 
   // Free card spaces in the order they fill (bottom row first), and the chosen sets placed in them
@@ -173,7 +117,6 @@ function QrPage({ onSessionExpired }: Props) {
   function changeCollection(id: string) {
     setChosenCollection(id)
     setQueue([])
-    setLoadError('')
     setNotice('')
   }
 
@@ -302,10 +245,7 @@ function QrPage({ onSessionExpired }: Props) {
               <button
                 type="button"
                 className="booth-button qr-refresh"
-                onClick={() => {
-                  setLoadError('')
-                  setReload((n) => n + 1)
-                }}
+                onClick={refresh}
                 disabled={!collectionId || loading}
                 aria-label="Refresh"
                 title="Load the latest photos"
@@ -331,9 +271,9 @@ function QrPage({ onSessionExpired }: Props) {
               <p className="booth-notice" role="alert">
                 {loadError}
               </p>
-            ) : loading ? (
+            ) : !hasLoaded ? (
               <p className="booth-hint">Loading photos…</p>
-            ) : current && sets.length === 0 ? (
+            ) : sets.length === 0 ? (
               <p className="booth-hint">No photos in this collection yet. Upload some from the Booth or Upload page.</p>
             ) : (
               <ul className="qr-sets" aria-label="Photo sets, newest first">

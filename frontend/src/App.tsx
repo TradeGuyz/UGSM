@@ -61,7 +61,7 @@ function App() {
       ) : (
         <main className="tool">
           {status === 'unlocked' && page === 'upload' && <UploadPage onSessionExpired={lock} />}
-          {status === 'unlocked' && page === 'booth' && <Booth />}
+          {status === 'unlocked' && page === 'booth' && <Booth onSessionExpired={lock} />}
           {status === 'unlocked' && page === 'qr' && <QrPage onSessionExpired={lock} />}
           {status === 'unlocked' && page === 'settings' && <Settings onSessionExpired={lock} />}
           {status === 'locked' && <PinScreen onUnlock={unlock} />}

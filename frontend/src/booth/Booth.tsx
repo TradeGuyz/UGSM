@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { LuImagePlus, LuMinus, LuPlus, LuPrinter, LuRotateCcw, LuScissors, LuX } from 'react-icons/lu'
+import { LuImagePlus, LuImages, LuMinus, LuPlus, LuPrinter, LuRotateCcw, LuScissors, LuX } from 'react-icons/lu'
 import { Select } from '../Select.tsx'
 import {
   CENTERED,
@@ -18,12 +18,22 @@ import { Print, Strip } from './pieces.tsx'
 import { PrintMarginField, Section, Switch } from './controls.tsx'
 import { loadPrintMargin, loadUsed, marginScale, printedSize, PX_PER_INCH, place, readStorage, savePrintMargin, writeStorage } from './storage.ts'
 import { isThemeId, THEME_IDS, THEMES, type ThemeId } from './themes.ts'
-import { displayablePhoto, isPhotoFile, looksLikeHeic, PHOTO_ACCEPT, useCollections } from '../rankuogClient.ts'
+import {
+  displayablePhoto,
+  downloadCollectionPhoto,
+  isPhotoFile,
+  looksLikeHeic,
+  PHOTO_ACCEPT,
+  useCollections,
+  type CollectionPhoto,
+} from '../rankuogClient.ts'
+import CollectionPicker from './CollectionPicker.tsx'
 import { stripLabel, uploadPhotos, type UploadState } from './upload.ts'
 import './booth.css'
 
 // position: which part of the photo shows when it's cropped to its box; reset when the photo changes
-type Photo = { file: File; url: string; position: PhotoPosition }
+// fromCollection: it came from a collection, so it's already online and never uploads again
+type Photo = { file: File; url: string; position: PhotoPosition; fromCollection: boolean }
 
 const isMode = (value: string | null): value is Mode => MODES.some((m) => m.mode === value)
 
@@ -42,7 +52,12 @@ function formatDate(iso: string): string {
   return day.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-function Booth() {
+type Props = {
+  /** Called when the server says the session has ended */
+  onSessionExpired: () => void
+}
+
+function Booth({ onSessionExpired }: Props) {
   const [mode, setMode] = useState<Mode>(() => {
     const saved = readStorage('photo-strip-mode')
     return isMode(saved) ? saved : 'strips'
@@ -71,6 +86,7 @@ function Booth() {
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [scale, setScale] = useState(1)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const uploadRef = useRef<UploadState | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -112,6 +128,8 @@ function Booth() {
   const positions = photos.map((p) => p?.position)
   const filledIndexes = photos.flatMap((p, i) => (p ? [i] : []))
   const photoCount = filledIndexes.length
+  // Photos that still need uploading; ones picked from a collection are already online
+  const toUpload = filledIndexes.filter((i) => !photos[i]?.fromCollection)
   const layout = mode === 'strips' ? STRIP_LAYOUT : null
   const freeGroups = layout ? layout.groups.filter((g) => g.every((slot) => !usedSlots.has(slot))) : []
   const sessionCount = Math.max(1, Math.min(freeGroups.length, sessions))
@@ -124,14 +142,14 @@ function Booth() {
   }
 
   // Puts files into the given positions, releasing the previews they replace
-  function placePhotos(entries: [number, File | undefined][]) {
+  function placePhotos(entries: [number, File | undefined][], fromCollection = false) {
     if (!entries.length) return
     setPhotos((prev) => {
       const next = [...prev]
       for (const [index, file] of entries) {
         const old = next[index]
         if (old) URL.revokeObjectURL(old.url)
-        next[index] = file ? { file, url: URL.createObjectURL(file), position: CENTERED } : undefined
+        next[index] = file ? { file, url: URL.createObjectURL(file), position: CENTERED, fromCollection } : undefined
       }
       return next
     })
@@ -140,7 +158,7 @@ function Booth() {
   }
 
   // Every new photo comes through here, so HEIC (iPhone) photos are turned into something the page can show
-  async function addPhotos(entries: [number, File][]) {
+  async function addPhotos(entries: [number, File][], fromCollection = false) {
     if (!entries.length) return
     if (entries.some(([, file]) => looksLikeHeic(file))) setNotice('Converting HEIC photo…')
     const ready: [number, File][] = []
@@ -152,7 +170,7 @@ function Booth() {
         failed++
       }
     }
-    placePhotos(ready)
+    placePhotos(ready, fromCollection)
     if (failed) setNotice(`Couldn't open ${failed} photo${failed === 1 ? '' : 's'}. Try exporting ${failed === 1 ? 'it' : 'them'} as JPEG.`)
   }
 
@@ -162,6 +180,17 @@ function Booth() {
     const empty = photos.flatMap((p, i) => (p ? [] : [i]))
     const targets = empty.length ? empty : photos.map((_, i) => i)
     void addPhotos(images.slice(0, targets.length).map((file, k): [number, File] => [targets[k], file]))
+  }
+
+  // Photos picked from a collection: they fill the empty boxes if they all fit there, otherwise boxes 1 onwards
+  async function chooseFromCollection(picked: CollectionPhoto[]) {
+    const files = await Promise.all(picked.map(downloadCollectionPhoto))
+    const empty = photos.flatMap((p, i) => (p ? [] : [i]))
+    const targets = files.length <= empty.length ? empty : photos.map((_, i) => i)
+    await addPhotos(
+      files.slice(0, targets.length).map((file, k): [number, File] => [targets[k], file]),
+      true,
+    )
   }
 
   const photoActions = {
@@ -194,7 +223,10 @@ function Booth() {
   // Uploads first (a retry carries on where it stopped, so nothing goes up twice), then prints.
   // The QR code for these photos is printed separately, from the QR codes page.
   async function handlePrint() {
-    if (upload && photoCount) {
+    if (upload && photoCount && !toUpload.length) {
+      setNotice('These photos are already in a collection, so nothing was uploaded.')
+    }
+    if (upload && toUpload.length) {
       if (!collectionId) {
         setNotice('Choose a collection to upload to, or turn off uploading.')
         return
@@ -205,7 +237,7 @@ function Booth() {
       const state = uploadRef.current
       setBusy(true)
       try {
-        await uploadPhotos(state, filledIndexes.map((i) => (photos[i] as Photo).file), title, setNotice)
+        await uploadPhotos(state, toUpload.map((i) => (photos[i] as Photo).file), title, setNotice)
       } catch (err) {
         setNotice(`${err instanceof Error ? err.message : 'Upload failed.'} Press Print to try again, or turn off uploading to print without it.`)
         return
@@ -254,7 +286,7 @@ function Booth() {
     marginBottom: scale < 1 ? `${-(1 - scale) * SHEET_H * PX_PER_INCH}px` : undefined,
   }
 
-  const printLabel = busy ? 'Uploading…' : upload && photoCount ? 'Upload & print' : 'Print'
+  const printLabel = busy ? 'Uploading…' : upload && toUpload.length ? 'Upload & print' : 'Print'
 
   return (
     <div className={`booth mode-${mode} theme-${theme}`}>
@@ -317,9 +349,23 @@ function Booth() {
                 </li>
               ))}
             </ol>
-            <label className="booth-button wide" htmlFor="booth-photos">
-              <LuImagePlus aria-hidden="true" /> {photoCount === PHOTOS_PER_SET ? 'Replace all photos' : 'Choose photos'}
-            </label>
+            <div className="booth-row">
+              <label className="booth-button" htmlFor="booth-photos" title={photoCount === PHOTOS_PER_SET ? 'Replace all photos' : undefined}>
+                <LuImagePlus aria-hidden="true" /> From device
+              </label>
+              <button type="button" className="booth-button" onClick={() => setPickerOpen(true)} disabled={busy}>
+                <LuImages aria-hidden="true" /> From collection
+              </button>
+            </div>
+            {pickerOpen && (
+              <CollectionPicker
+                collections={collections}
+                max={PHOTOS_PER_SET}
+                onChoose={chooseFromCollection}
+                onClose={() => setPickerOpen(false)}
+                onSessionExpired={onSessionExpired}
+              />
+            )}
             <input
               id="booth-photos"
               type="file"
@@ -343,7 +389,9 @@ function Booth() {
                 e.target.value = ''
               }}
             />
-            <p className="booth-hint">Click a box, here or on the sheet, to add or change that photo. You can also drag a photo onto it.</p>
+            <p className="booth-hint">
+              Click a box, here or on the sheet, to add or change that photo, or drag a photo onto it. Photos from a collection are already online, so they aren't uploaded again.
+            </p>
           </Section>
 
           <Section title="Design">
