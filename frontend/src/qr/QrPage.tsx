@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { LuCheck, LuPrinter, LuRefreshCw, LuRotateCcw, LuScissors, LuX } from 'react-icons/lu'
 import { Select } from '../Select.tsx'
-import { Section, Switch } from '../booth/controls.tsx'
+import { PrintMarginField, Section, Switch } from '../booth/controls.tsx'
 import { CARD_LAYOUT, SHEET_H, SHEET_W } from '../booth/layouts.ts'
 import { QrCard } from '../booth/pieces.tsx'
-import { loadUsed, place, PX_PER_INCH, readStorage, writeStorage } from '../booth/storage.ts'
+import { loadPrintMargin, loadUsed, marginScale, place, printedSize, PX_PER_INCH, readStorage, savePrintMargin, writeStorage } from '../booth/storage.ts'
 import { isThemeId, THEME_IDS, THEMES, type ThemeId } from '../booth/themes.ts'
 import { fetchCollectionPhotos, SessionEndedError, useCollections, type CollectionPhoto } from '../rankuogClient.ts'
 import '../booth/booth.css'
@@ -101,6 +101,7 @@ function QrPage({ onSessionExpired }: Props) {
   const [queue, setQueue] = useState<string[]>([])
   const [printed, setPrinted] = useState(loadPrinted)
   const [usedSlots, setUsedSlots] = useState(() => loadUsed(CARD_LAYOUT))
+  const [margin, setMargin] = useState(loadPrintMargin)
   const [theme, setTheme] = useState<ThemeId>(() => {
     const saved = readStorage('qr-theme') ?? readStorage('booth-theme')
     return isThemeId(saved) ? saved : 'classic'
@@ -185,6 +186,11 @@ function QrPage({ onSessionExpired }: Props) {
     } else {
       setQueue([...queue, set.key])
     }
+  }
+
+  function changeMargin(next: number) {
+    setMargin(next)
+    savePrintMargin(next)
   }
 
   function saveUsed(next: Set<number>) {
@@ -400,6 +406,10 @@ function QrPage({ onSessionExpired }: Props) {
               </button>
             )}
             <p className="booth-hint">Tip: click a free or cut-out space on the sheet to switch it.</p>
+            <PrintMarginField value={margin} onChange={changeMargin} disabled={busy} />
+            <p className="booth-hint">
+              Cards print at {printedSize(CARD_LAYOUT, margin)}. If the edges get cut off, make this bigger. Change it only on a fresh sheet.
+            </p>
           </Section>
 
           <div className="booth-print">
@@ -417,7 +427,10 @@ function QrPage({ onSessionExpired }: Props) {
 
         <div className="booth-preview" ref={wrapRef}>
           <div className="booth-sheet" style={sheetStyle}>
-            {cards}
+            {/* The cards run to the paper's edges, so they're shrunk inside the printer margin */}
+            <div className="booth-sheet-inner" style={{ transform: `scale(${marginScale(margin)})` }}>
+              {cards}
+            </div>
           </div>
         </div>
       </div>

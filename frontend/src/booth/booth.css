@@ -446,6 +446,13 @@
   text-align: center;
 }
 
+/* Holds the pieces; shrunk around the sheet's centre to stay inside the printer margin */
+.booth-sheet-inner {
+  position: absolute;
+  inset: 0;
+  transform-origin: center;
+}
+
 .booth .slot {
   position: absolute;
   display: flex;
@@ -892,10 +899,18 @@
     display: block;
   }
 
+  /* Exactly one Letter page. A hair under 11 in, as a sheet exactly the page's height can spill
+     a blank second page in some browsers; nothing sits in that last fraction of a pixel. */
   .booth-sheet {
+    height: calc(11in - 1px);
     box-shadow: none;
     transform: none !important;
     margin: 0 !important;
+    break-inside: avoid;
+    break-after: avoid;
+    /* Colours exactly as on screen */
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 
   .booth .slot.free,

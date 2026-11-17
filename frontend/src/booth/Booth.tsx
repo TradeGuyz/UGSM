@@ -15,8 +15,8 @@ import {
   type PhotoPosition,
 } from './layouts.ts'
 import { Print, Strip } from './pieces.tsx'
-import { Section, Switch } from './controls.tsx'
-import { loadUsed, PX_PER_INCH, place, readStorage, writeStorage } from './storage.ts'
+import { PrintMarginField, Section, Switch } from './controls.tsx'
+import { loadPrintMargin, loadUsed, marginScale, printedSize, PX_PER_INCH, place, readStorage, savePrintMargin, writeStorage } from './storage.ts'
 import { isThemeId, THEME_IDS, THEMES, type ThemeId } from './themes.ts'
 import { displayablePhoto, isPhotoFile, looksLikeHeic, PHOTO_ACCEPT, useCollections } from '../rankuogClient.ts'
 import { stripLabel, uploadPhotos, type UploadState } from './upload.ts'
@@ -63,6 +63,11 @@ function Booth() {
   const collectionId = collections?.some((c) => c.id === chosenCollection) ? chosenCollection : (collections?.[0]?.id ?? '')
   // Cut-out slots on the current strip sheet
   const [usedSlots, setUsedSlots] = useState(() => loadUsed(STRIP_LAYOUT))
+  const [margin, setMargin] = useState(loadPrintMargin)
+  function changeMargin(next: number) {
+    setMargin(next)
+    savePrintMargin(next)
+  }
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [scale, setScale] = useState(1)
@@ -422,6 +427,10 @@ function Booth() {
                 </button>
               </div>
               <p className="booth-hint">Tip: click a free or cut-out space on the sheet to switch it.</p>
+              <PrintMarginField value={margin} onChange={changeMargin} disabled={busy} />
+              <p className="booth-hint">
+                Strips print at {printedSize(layout, margin)}. If the edges get cut off, make this bigger. Change it only on a fresh sheet.
+              </p>
             </Section>
           )}
 
@@ -478,7 +487,10 @@ function Booth() {
 
         <div className="booth-preview" ref={wrapRef}>
           <div className="booth-sheet" style={sheetStyle}>
-            {frontPieces}
+            {/* Strips run to the paper's edges, so they're shrunk inside the printer margin; 4 × 5 prints already sit inside it */}
+            <div className="booth-sheet-inner" style={layout ? { transform: `scale(${marginScale(margin)})` } : undefined}>
+              {frontPieces}
+            </div>
           </div>
         </div>
       </div>
